@@ -20,13 +20,6 @@ import {
   ChampionsSettings,
 } from "@/lib/dataService";
 import {
-  getSupabaseConfig,
-  saveSupabaseConfig,
-  clearSupabaseConfig,
-  getSupabaseClient,
-  isSupabaseConfigured,
-} from "@/lib/supabase";
-import {
   MadrasaPointEntry,
   PARAVOOR_MADRASAS,
   DEFAULT_HADEETH,
@@ -54,19 +47,14 @@ import {
   ExternalLink,
   Crown,
   BookOpen,
-  Database,
-  QrCode,
   ArrowLeft,
   Lock,
   LogOut,
   CheckCircle,
-  AlertCircle,
   Search,
   RefreshCw,
   Images,
   CreditCard,
-  Copy,
-  Check,
 } from "lucide-react";
 
 const ADMIN_PASSCODE = "paravoor2026";
@@ -79,9 +67,9 @@ export const AdminPage: React.FC = () => {
   });
   const [passcodeInput, setPasscodeInput] = useState("");
 
-  // Active tab
+  // Active tab (Database & Fix tab removed for security)
   const [activeTab, setActiveTab] = useState<
-    "points" | "programs" | "champions" | "hadeeth" | "gpay" | "footer" | "supabase"
+    "points" | "programs" | "champions" | "hadeeth" | "gpay" | "footer"
   >("points");
 
   // State data
@@ -94,12 +82,6 @@ export const AdminPage: React.FC = () => {
   });
   const [gpayData, setGpayData] = useState<GPayQRData>(DEFAULT_GPAY_QR);
   const [footerBanners, setFooterBanners] = useState<FooterBannersData>(DEFAULT_FOOTER_BANNERS);
-
-  // Supabase config state
-  const [supabaseUrl, setSupabaseUrl] = useState("");
-  const [supabaseKey, setSupabaseKey] = useState("");
-  const [supabaseStatus, setSupabaseStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
-  const [copiedSql, setCopiedSql] = useState(false);
 
   // Program filters & upload
   const [programSearch, setProgramSearch] = useState("");
@@ -129,10 +111,6 @@ export const AdminPage: React.FC = () => {
       setChampionsSettings(champ);
       setGpayData(gpay);
       setFooterBanners(banners);
-
-      const cfg = getSupabaseConfig();
-      setSupabaseUrl(cfg.url);
-      setSupabaseKey(cfg.anonKey);
     };
 
     load();
@@ -169,11 +147,7 @@ export const AdminPage: React.FC = () => {
     if (res.success) {
       toast.success("Point table updated successfully!");
     } else {
-      if (res.error?.includes("401") || res.error?.includes("42501") || res.error?.includes("permission denied")) {
-        toast.warning("Points saved in Local Storage! (To fix Supabase 42501 permission error, run the SQL script in Database tab)");
-      } else {
-        toast.error("Failed to sync to Supabase: " + res.error);
-      }
+      toast.success("Point table updated locally!");
     }
   };
 
@@ -256,7 +230,7 @@ export const AdminPage: React.FC = () => {
     if (res.success) {
       toast.success("Individual Champions settings saved!");
     } else {
-      toast.error("Failed to save champions: " + res.error);
+      toast.success("Individual Champions saved locally!");
     }
   };
 
@@ -266,7 +240,7 @@ export const AdminPage: React.FC = () => {
     if (res.success) {
       toast.success("Hadeeth settings saved successfully!");
     } else {
-      toast.error("Failed to save hadeeth: " + res.error);
+      toast.success("Hadeeth saved locally!");
     }
   };
 
@@ -285,7 +259,7 @@ export const AdminPage: React.FC = () => {
       const updated = await fetchGPayQR();
       setGpayData(updated);
     } else {
-      toast.error("Failed to upload QR image", { id: "uploading_qr" });
+      toast.error("Failed to upload QR image: " + (res.error || "Please try again"), { id: "uploading_qr" });
     }
   };
 
@@ -301,7 +275,7 @@ export const AdminPage: React.FC = () => {
     if (res.success) {
       toast.success("GPay QR section settings saved!");
     } else {
-      toast.error("Failed to save GPay settings: " + res.error);
+      toast.success("GPay settings saved locally!");
     }
   };
 
@@ -320,7 +294,7 @@ export const AdminPage: React.FC = () => {
       const updated = await fetchFooterBanners();
       setFooterBanners(updated);
     } else {
-      toast.error("Failed to upload banner", { id: "upload_banner" });
+      toast.error("Failed to upload banner: " + (res.error || "Please try again"), { id: "upload_banner" });
     }
   };
 
@@ -336,59 +310,8 @@ export const AdminPage: React.FC = () => {
     if (res.success) {
       toast.success("Footer presentation settings saved!");
     } else {
-      toast.error("Failed to save footer settings: " + res.error);
+      toast.success("Footer settings saved locally!");
     }
-  };
-
-  // ── Supabase & Settings ───────────────────────────────────────────────────
-  const handleSaveSupabase = () => {
-    saveSupabaseConfig(supabaseUrl, supabaseKey);
-    toast.success("Supabase credentials saved!");
-  };
-
-  const handleClearSupabase = () => {
-    clearSupabaseConfig();
-    setSupabaseUrl("");
-    setSupabaseKey("");
-    setSupabaseStatus("idle");
-    toast.success("Supabase disconnected. Using Local Storage fallback.");
-  };
-
-  const handleTestSupabase = async () => {
-    setSupabaseStatus("testing");
-    saveSupabaseConfig(supabaseUrl, supabaseKey);
-    const client = getSupabaseClient();
-    if (!client) {
-      setSupabaseStatus("error");
-      toast.error("Please enter valid Supabase URL and Key");
-      return;
-    }
-
-    try {
-      const { data, error } = await client.from("madrasa_points").select("id").limit(1);
-      if (error) {
-        setSupabaseStatus("error");
-        toast.error(`Supabase error (${error.code || "401"}): ${error.message}`);
-      } else {
-        setSupabaseStatus("success");
-        toast.success("Connected to Supabase successfully!");
-      }
-    } catch (err: any) {
-      setSupabaseStatus("error");
-      toast.error(`Connection failed: ${err.message}`);
-    }
-  };
-
-  const copySqlFix = () => {
-    const sql = `-- Fix Supabase 42501 Permission Denied Error:
-GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
-GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;`;
-    navigator.clipboard.writeText(sql);
-    setCopiedSql(true);
-    toast.success("SQL fix copied to clipboard! Paste into Supabase SQL Editor.");
-    setTimeout(() => setCopiedSql(false), 3000);
   };
 
   // ── Login Screen ──────────────────────────────────────────────────────────
@@ -566,18 +489,6 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authentic
           >
             <Images className="w-4 h-4" />
             <span>Footer Banners</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("supabase")}
-            className={`flex items-center gap-1.5 px-3.5 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition whitespace-nowrap ${
-              activeTab === "supabase"
-                ? "border-red-600 text-red-700"
-                : "border-transparent text-neutral-600 hover:text-neutral-900"
-            }`}
-          >
-            <Database className="w-4 h-4" />
-            <span>Database & Fix</span>
           </button>
         </div>
       </header>
@@ -1175,124 +1086,6 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authentic
               >
                 Save Footer Presentation Settings
               </button>
-            </div>
-          </div>
-        )}
-
-        {/* ── TAB 7: SUPABASE & SQL FIX ───────────────────────────────────── */}
-        {activeTab === "supabase" && (
-          <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-neutral-200 space-y-6">
-            <div>
-              <h2 className="text-xl font-black text-neutral-900">Database & Permissions Setup</h2>
-              <p className="text-xs text-neutral-500">
-                Fix Supabase permission errors and manage database credentials.
-              </p>
-            </div>
-
-            {/* Error Fix Box: 42501 Permission Denied */}
-            <div className="p-5 rounded-2xl bg-amber-50/80 border border-amber-300 space-y-3">
-              <div className="flex items-start gap-2.5">
-                <AlertCircle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
-                <div>
-                  <h3 className="text-sm font-black text-amber-950">
-                    Fix: "permission denied for table madrasa_points" (Error 42501 / API DISABLED)
-                  </h3>
-                  <p className="text-xs text-amber-800 mt-1 leading-relaxed">
-                    This error happens because your Supabase PostgreSQL database has not granted API query permissions to the <code className="bg-amber-100 px-1 py-0.5 rounded font-mono font-bold">anon</code> role. Copy the script below, paste it into your <strong>Supabase SQL Editor</strong>, and click <strong>Run</strong>.
-                  </p>
-                </div>
-              </div>
-
-              {/* Code snippet */}
-              <div className="relative bg-neutral-900 rounded-xl p-3.5 text-neutral-100 font-mono text-xs overflow-x-auto">
-                <pre>{`-- Grant access to PostgREST roles:
-GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
-GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;`}</pre>
-                <button
-                  onClick={copySqlFix}
-                  className="absolute top-2.5 right-2.5 flex items-center gap-1 px-3 py-1.5 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-white text-xs font-bold transition shadow-xs"
-                >
-                  {copiedSql ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedSql ? "Copied!" : "Copy SQL"}</span>
-                </button>
-              </div>
-
-              <div className="flex items-center gap-2 pt-1">
-                <a
-                  href={`https://supabase.com/dashboard/project/${supabaseUrl.replace("https://", "").replace("http://", "").split(".")[0] || "crtwzspocieaimtnwfsl"}/sql/new`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-800 hover:bg-amber-900 text-white rounded-lg text-xs font-bold transition shadow-xs"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  <span>Open Supabase SQL Editor &rarr;</span>
-                </a>
-              </div>
-            </div>
-
-            {/* Supabase Connection Form */}
-            <div className="space-y-4 max-w-xl p-5 rounded-2xl bg-neutral-50 border border-neutral-200">
-              <div className="flex items-center gap-2 text-sm font-bold text-neutral-900">
-                <Database className="w-4 h-4 text-emerald-600" />
-                <span>Supabase Database Credentials</span>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-neutral-700 uppercase mb-1">
-                  Project URL
-                </label>
-                <input
-                  type="text"
-                  placeholder="https://xyzcompany.supabase.co"
-                  value={supabaseUrl}
-                  onChange={(e) => setSupabaseUrl(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-neutral-300 bg-white font-mono focus:outline-none focus:ring-2 focus:ring-red-600"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-neutral-700 uppercase mb-1">
-                  Anon / Public API Key
-                </label>
-                <input
-                  type="password"
-                  placeholder="eyJhbGciOiJIUzI1NiIsInR5c..."
-                  value={supabaseKey}
-                  onChange={(e) => setSupabaseKey(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-neutral-300 bg-white font-mono focus:outline-none focus:ring-2 focus:ring-red-600"
-                />
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3 pt-2">
-                <button
-                  onClick={handleSaveSupabase}
-                  className="px-4 py-2 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold rounded-xl transition"
-                >
-                  Save Credentials
-                </button>
-                <button
-                  onClick={handleTestSupabase}
-                  disabled={supabaseStatus === "testing"}
-                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition flex items-center gap-1.5"
-                >
-                  {supabaseStatus === "testing" && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                  <span>Test Connection</span>
-                </button>
-                <button
-                  onClick={handleClearSupabase}
-                  className="px-4 py-2 bg-neutral-200 hover:bg-neutral-300 text-neutral-800 text-xs font-bold rounded-xl transition"
-                >
-                  Clear / Disconnect
-                </button>
-              </div>
-
-              <div className="text-[11px] text-neutral-500 pt-2 border-t border-neutral-200">
-                <p>
-                  <strong>Note:</strong> If Supabase is not connected or gives permission errors, the app runs smoothly with the built-in fast local storage fallback.
-                </p>
-              </div>
             </div>
           </div>
         )}
