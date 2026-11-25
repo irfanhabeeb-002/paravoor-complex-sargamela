@@ -1,0 +1,21 @@
+# ==============================================================================
+# Python Requirements for Sargamela Data Tools (2026, 2027, 2028...)
+# ==============================================================================
+# Use these tools when converting official PDF mark lists, Excel files,
+# or tabulation sheets into the JSON format required by the website.
+#
+# Install via:
+#   pip install -r requirements.txt
+# ==============================================================================
+
+# PDF text and table extraction
+pdfplumber>=0.11.0
+pypdf>=4.0.0
+
+# Tabular data manipulation and Excel parsing
+pandas>=2.2.0
+openpyxl>=3.1.2
+
+# Firebase Firestore Admin SDK (optional Python ingestion)
+firebase-admin>=6.5.0
+requests>=2.31.0
