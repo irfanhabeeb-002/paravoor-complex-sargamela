@@ -11,10 +11,10 @@ import {
   fetchProgramResults,
   fetchHadeeth,
   fetchIndividualChampions,
-  fetchQRCodeSettings,
+  fetchGPayQR,
+  fetchFooterBanners,
   DATA_CHANGE_EVENT,
   ChampionsSettings,
-  QRCodeSettings,
 } from "@/lib/dataService";
 import {
   MadrasaPointEntry,
@@ -22,6 +22,10 @@ import {
   DEFAULT_HADEETH,
   HadeethData,
   ProgramResultEntry,
+  GPayQRData,
+  DEFAULT_GPAY_QR,
+  FooterBannersData,
+  DEFAULT_FOOTER_BANNERS,
 } from "@/data/paravoorData";
 
 const Home: React.FC = () => {
@@ -29,27 +33,27 @@ const Home: React.FC = () => {
   const [resultsMap, setResultsMap] = useState<Record<number, ProgramResultEntry>>({});
   const [hadeeth, setHadeeth] = useState<HadeethData>(DEFAULT_HADEETH);
   const [champions, setChampions] = useState<ChampionsSettings>({ enabled: false, champions: [] });
-  const [qrSettings, setQrSettings] = useState<QRCodeSettings>({
-    url: "https://paravoor-complex-sargamela.netlify.app/",
-    enabled: true,
-  });
+  const [gpayData, setGpayData] = useState<GPayQRData>(DEFAULT_GPAY_QR);
+  const [footerBanners, setFooterBanners] = useState<FooterBannersData>(DEFAULT_FOOTER_BANNERS);
   const [loading, setLoading] = useState(true);
 
   const loadAllData = async () => {
     try {
-      const [pts, res, had, champ, qr] = await Promise.all([
+      const [pts, res, had, champ, gpay, banners] = await Promise.all([
         fetchMadrasaPoints(),
         fetchProgramResults(),
         fetchHadeeth(),
         fetchIndividualChampions(),
-        fetchQRCodeSettings(),
+        fetchGPayQR(),
+        fetchFooterBanners(),
       ]);
 
       setPoints(pts);
       setResultsMap(res);
       setHadeeth(had);
       setChampions(champ);
-      setQrSettings(qr);
+      setGpayData(gpay);
+      setFooterBanners(banners);
     } catch (err) {
       console.error("Error loading home page data:", err);
     } finally {
@@ -89,12 +93,12 @@ const Home: React.FC = () => {
           {/* Hadeeth Card (if uploaded/enabled) */}
           <HadeethCard hadeeth={hadeeth} />
 
-          {/* QR Code Section */}
-          <QRCodeSection settings={qrSettings} />
+          {/* GPay QR Code Section (for Sargamela Public Funding) */}
+          <QRCodeSection gpayData={gpayData} />
         </div>
 
-        {/* Footer Banner & Credits */}
-        <Footer />
+        {/* Footer Presentation Banners (changes every 3-5s) & Credits */}
+        <Footer bannersData={footerBanners} />
       </main>
     </div>
   );

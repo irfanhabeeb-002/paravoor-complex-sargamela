@@ -6,6 +6,10 @@ import {
   HadeethData,
   IndividualChampionEntry,
   ProgramResultEntry,
+  GPayQRData,
+  DEFAULT_GPAY_QR,
+  FooterBannersData,
+  DEFAULT_FOOTER_BANNERS,
 } from "@/data/paravoorData";
 import { ALL_PROGRAMS } from "@/data/programsData";
 
@@ -15,6 +19,8 @@ const LS_PROGRAMS_KEY = "paravoor_program_results_v1";
 const LS_HADEETH_KEY = "paravoor_hadeeth_v1";
 const LS_CHAMPIONS_KEY = "paravoor_champions_v1";
 const LS_QR_KEY = "paravoor_qr_v1";
+const LS_GPAY_QR_KEY = "paravoor_gpay_qr_v1";
+const LS_FOOTER_BANNERS_KEY = "paravoor_footer_banners_v1";
 
 export const DATA_CHANGE_EVENT = "paravoor_data_changed";
 
@@ -394,66 +400,205 @@ export const saveIndividualChampions = async (
   return { success: true };
 };
 
-// ── 5. QR Code Settings ──────────────────────────────────────────────────────
-export interface QRCodeSettings {
-  url: string;
-  enabled: boolean;
-  customImage?: string;
-}
-
-export const fetchQRCodeSettings = async (): Promise<QRCodeSettings> => {
-  const defaultSettings: QRCodeSettings = {
-    url: "https://paravoor-complex-sargamela.netlify.app/",
-    enabled: true,
-  };
-
+// ── 6. GPay QR Code for Public Funding ──────────────────────────────────────
+export const fetchGPayQR = async (): Promise<GPayQRData> => {
   const client = getSupabaseClient();
   if (client) {
     try {
       const { data, error } = await client
         .from("site_settings")
         .select("value")
-        .eq("key", "qr_code")
+        .eq("key", "gpay_qr")
         .single();
       if (!error && data && data.value) {
-        localStorage.setItem(LS_QR_KEY, JSON.stringify(data.value));
-        return data.value as QRCodeSettings;
+        localStorage.setItem(LS_GPAY_QR_KEY, JSON.stringify(data.value));
+        return data.value as GPayQRData;
       }
     } catch (err) {
-      console.warn("Supabase fetch QR error:", err);
+      console.warn("Supabase fetch GPay QR error:", err);
     }
   }
 
   try {
-    const cached = localStorage.getItem(LS_QR_KEY);
+    const cached = localStorage.getItem(LS_GPAY_QR_KEY);
     if (cached) return JSON.parse(cached);
   } catch {
     // ignore
   }
 
-  return defaultSettings;
+  return DEFAULT_GPAY_QR;
 };
 
-export const saveQRCodeSettings = async (
-  settings: QRCodeSettings
+export const saveGPayQR = async (
+  gpay: GPayQRData
 ): Promise<{ success: boolean; error?: string }> => {
-  localStorage.setItem(LS_QR_KEY, JSON.stringify(settings));
-  notifyDataChange("qrcode");
+  localStorage.setItem(LS_GPAY_QR_KEY, JSON.stringify(gpay));
+  notifyDataChange("gpay_qr");
 
   const client = getSupabaseClient();
   if (client) {
     try {
       const { error } = await client.from("site_settings").upsert({
-        key: "qr_code",
-        value: settings,
+        key: "gpay_qr",
+        value: gpay,
         updated_at: new Date().toISOString(),
       });
       if (error) throw error;
     } catch (err: any) {
-      console.error("Supabase save QR code error:", err);
+      console.error("Supabase save GPay QR error:", err);
       return { success: false, error: err.message };
     }
   }
 
   return { success: true };
 };
+
+export const uploadGPayQRImage = async (
+  file: File
+): Promise<{ success: boolean; imageUrl?: string; error?: string }> => {
+  let publicUrl = "";
+
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const fileName = `gpay_qr_${Date.now()}.${file.name.split(".").pop() || "png"}`;
+      const { error: uploadError } = await client.storage
+        .from("sargamela-results")
+        .upload(fileName, file, { cacheControl: "3600", upsert: true });
+
+      if (!uploadError) {
+        const { data: urlData } = client.storage
+          .from("sargamela-results")
+          .getPublicUrl(fileName);
+        publicUrl = urlData.publicUrl;
+      }
+    } catch (err) {
+      console.warn("Supabase GPay QR upload error:", err);
+    }
+  }
+
+  if (!publicUrl) {
+    publicUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  const current = await fetchGPayQR();
+  const updated = { ...current, qrImageUrl: publicUrl };
+  await saveGPayQR(updated);
+
+  return { success: true, imageUrl: publicUrl };
+};
+
+// ── 7. Footer Banners (Presentation slideshow) ──────────────────────────────
+export const fetchFooterBanners = async (): Promise<FooterBannersData> => {
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { data, error } = await client
+        .from("site_settings")
+        .select("value")
+        .eq("key", "footer_banners")
+        .single();
+      if (!error && data && data.value) {
+        localStorage.setItem(LS_FOOTER_BANNERS_KEY, JSON.stringify(data.value));
+        return data.value as FooterBannersData;
+      }
+    } catch (err) {
+      console.warn("Supabase fetch footer banners error:", err);
+    }
+  }
+
+  try {
+    const cached = localStorage.getItem(LS_FOOTER_BANNERS_KEY);
+    if (cached) return JSON.parse(cached);
+  } catch {
+    // ignore
+  }
+
+  return DEFAULT_FOOTER_BANNERS;
+};
+
+export const saveFooterBanners = async (
+  data: FooterBannersData
+): Promise<{ success: boolean; error?: string }> => {
+  localStorage.setItem(LS_FOOTER_BANNERS_KEY, JSON.stringify(data));
+  notifyDataChange("footer_banners");
+
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { error } = await client.from("site_settings").upsert({
+        key: "footer_banners",
+        value: data,
+        updated_at: new Date().toISOString(),
+      });
+      if (error) throw error;
+    } catch (err: any) {
+      console.error("Supabase save footer banners error:", err);
+      return { success: false, error: err.message };
+    }
+  }
+
+  return { success: true };
+};
+
+export const uploadFooterBannerImage = async (
+  slotIndex: number,
+  file: File
+): Promise<{ success: boolean; imageUrl?: string; error?: string }> => {
+  let publicUrl = "";
+
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const fileName = `footer_banner_${slotIndex}_${Date.now()}.${file.name.split(".").pop() || "png"}`;
+      const { error: uploadError } = await client.storage
+        .from("sargamela-results")
+        .upload(fileName, file, { cacheControl: "3600", upsert: true });
+
+      if (!uploadError) {
+        const { data: urlData } = client.storage
+          .from("sargamela-results")
+          .getPublicUrl(fileName);
+        publicUrl = urlData.publicUrl;
+      }
+    } catch (err) {
+      console.warn("Supabase footer banner upload error:", err);
+    }
+  }
+
+  if (!publicUrl) {
+    publicUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  const current = await fetchFooterBanners();
+  const newBanners = [...current.banners];
+  newBanners[slotIndex] = publicUrl;
+  const updated = { ...current, banners: newBanners };
+  await saveFooterBanners(updated);
+
+  return { success: true, imageUrl: publicUrl };
+};
+
+export const deleteFooterBannerImage = async (
+  slotIndex: number
+): Promise<{ success: boolean }> => {
+  const current = await fetchFooterBanners();
+  const newBanners = current.banners.filter((_, idx) => idx !== slotIndex);
+  if (newBanners.length === 0) {
+    newBanners.push("/conference-footer.png");
+  }
+  const updated = { ...current, banners: newBanners };
+  await saveFooterBanners(updated);
+  return { success: true };
+};
+

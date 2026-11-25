@@ -10,10 +10,14 @@ import {
   saveHadeeth,
   fetchIndividualChampions,
   saveIndividualChampions,
-  fetchQRCodeSettings,
-  saveQRCodeSettings,
+  fetchGPayQR,
+  saveGPayQR,
+  uploadGPayQRImage,
+  fetchFooterBanners,
+  saveFooterBanners,
+  uploadFooterBannerImage,
+  deleteFooterBannerImage,
   ChampionsSettings,
-  QRCodeSettings,
 } from "@/lib/dataService";
 import {
   getSupabaseConfig,
@@ -29,6 +33,10 @@ import {
   HadeethData,
   ProgramResultEntry,
   IndividualChampionEntry,
+  GPayQRData,
+  DEFAULT_GPAY_QR,
+  FooterBannersData,
+  DEFAULT_FOOTER_BANNERS,
 } from "@/data/paravoorData";
 import {
   ALL_PROGRAMS,
@@ -55,6 +63,10 @@ import {
   AlertCircle,
   Search,
   RefreshCw,
+  Images,
+  CreditCard,
+  Copy,
+  Check,
 } from "lucide-react";
 
 const ADMIN_PASSCODE = "paravoor2026";
@@ -69,55 +81,54 @@ export const AdminPage: React.FC = () => {
 
   // Active tab
   const [activeTab, setActiveTab] = useState<
-    "points" | "programs" | "champions" | "hadeeth" | "supabase"
+    "points" | "programs" | "champions" | "hadeeth" | "gpay" | "footer" | "supabase"
   >("points");
 
   // State data
   const [points, setPoints] = useState<MadrasaPointEntry[]>(PARAVOOR_MADRASAS);
   const [resultsMap, setResultsMap] = useState<Record<number, ProgramResultEntry>>({});
-  const [hadeeth, setHadeeth] = useState<HadeethData>(DEFAULTHadeeth());
+  const [hadeeth, setHadeeth] = useState<HadeethData>(DEFAULT_HADEETH);
   const [championsSettings, setChampionsSettings] = useState<ChampionsSettings>({
     enabled: false,
     champions: [],
   });
-  const [qrSettings, setQrSettings] = useState<QRCodeSettings>({
-    url: "https://paravoor-complex-sargamela.netlify.app/",
-    enabled: true,
-  });
+  const [gpayData, setGpayData] = useState<GPayQRData>(DEFAULT_GPAY_QR);
+  const [footerBanners, setFooterBanners] = useState<FooterBannersData>(DEFAULT_FOOTER_BANNERS);
 
   // Supabase config state
   const [supabaseUrl, setSupabaseUrl] = useState("");
   const [supabaseKey, setSupabaseKey] = useState("");
   const [supabaseStatus, setSupabaseStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
+  const [copiedSql, setCopiedSql] = useState(false);
 
   // Program filters & upload
   const [programSearch, setProgramSearch] = useState("");
   const [programCategoryFilter, setProgramCategoryFilter] = useState("All");
   const [uploadingId, setUploadingId] = useState<number | null>(null);
   const [savingPoints, setSavingPoints] = useState(false);
-
-  function DEFAULTHadeeth(): HadeethData {
-    return DEFAULT_HADEETH;
-  }
+  const [uploadingQR, setUploadingQR] = useState(false);
+  const [uploadingBannerSlot, setUploadingBannerSlot] = useState<number | null>(null);
 
   // Load data
   useEffect(() => {
     if (!isAuthenticated) return;
 
     const load = async () => {
-      const [pts, res, had, champ, qr] = await Promise.all([
+      const [pts, res, had, champ, gpay, banners] = await Promise.all([
         fetchMadrasaPoints(),
         fetchProgramResults(),
         fetchHadeeth(),
         fetchIndividualChampions(),
-        fetchQRCodeSettings(),
+        fetchGPayQR(),
+        fetchFooterBanners(),
       ]);
 
       setPoints(pts);
       setResultsMap(res);
       setHadeeth(had);
       setChampionsSettings(champ);
-      setQrSettings(qr);
+      setGpayData(gpay);
+      setFooterBanners(banners);
 
       const cfg = getSupabaseConfig();
       setSupabaseUrl(cfg.url);
@@ -158,8 +169,8 @@ export const AdminPage: React.FC = () => {
     if (res.success) {
       toast.success("Point table updated successfully!");
     } else {
-      if (res.error?.includes("401") || res.error?.includes("JWT") || res.error?.includes("API key")) {
-        toast.warning("Points saved in Local Storage! (Supabase returned 401: Please check Anon Key in Settings)");
+      if (res.error?.includes("401") || res.error?.includes("42501") || res.error?.includes("permission denied")) {
+        toast.warning("Points saved in Local Storage! (To fix Supabase 42501 permission error, run the SQL script in Database tab)");
       } else {
         toast.error("Failed to sync to Supabase: " + res.error);
       }
@@ -259,6 +270,76 @@ export const AdminPage: React.FC = () => {
     }
   };
 
+  // ── GPay QR Actions ───────────────────────────────────────────────────────
+  const handleQRUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingQR(true);
+    toast.loading("Uploading GPay QR Code image...", { id: "uploading_qr" });
+    const res = await uploadGPayQRImage(file);
+    setUploadingQR(false);
+
+    if (res.success) {
+      toast.success("GPay QR Code uploaded successfully!", { id: "uploading_qr" });
+      const updated = await fetchGPayQR();
+      setGpayData(updated);
+    } else {
+      toast.error("Failed to upload QR image", { id: "uploading_qr" });
+    }
+  };
+
+  const handleDeleteQR = async () => {
+    const updated = { ...gpayData, qrImageUrl: "" };
+    await saveGPayQR(updated);
+    setGpayData(updated);
+    toast.success("GPay QR image removed (reverted to default)");
+  };
+
+  const handleSaveGPaySettings = async () => {
+    const res = await saveGPayQR(gpayData);
+    if (res.success) {
+      toast.success("GPay QR section settings saved!");
+    } else {
+      toast.error("Failed to save GPay settings: " + res.error);
+    }
+  };
+
+  // ── Footer Presentation Banners Actions ───────────────────────────────────
+  const handleBannerUpload = async (slotIndex: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingBannerSlot(slotIndex);
+    toast.loading(`Uploading Banner ${slotIndex + 1}...`, { id: "upload_banner" });
+    const res = await uploadFooterBannerImage(slotIndex, file);
+    setUploadingBannerSlot(null);
+
+    if (res.success) {
+      toast.success(`Banner ${slotIndex + 1} uploaded!`, { id: "upload_banner" });
+      const updated = await fetchFooterBanners();
+      setFooterBanners(updated);
+    } else {
+      toast.error("Failed to upload banner", { id: "upload_banner" });
+    }
+  };
+
+  const handleDeleteBanner = async (slotIndex: number) => {
+    await deleteFooterBannerImage(slotIndex);
+    const updated = await fetchFooterBanners();
+    setFooterBanners(updated);
+    toast.success(`Banner ${slotIndex + 1} removed`);
+  };
+
+  const handleSaveFooterSettings = async () => {
+    const res = await saveFooterBanners(footerBanners);
+    if (res.success) {
+      toast.success("Footer presentation settings saved!");
+    } else {
+      toast.error("Failed to save footer settings: " + res.error);
+    }
+  };
+
   // ── Supabase & Settings ───────────────────────────────────────────────────
   const handleSaveSupabase = () => {
     saveSupabaseConfig(supabaseUrl, supabaseKey);
@@ -287,7 +368,7 @@ export const AdminPage: React.FC = () => {
       const { data, error } = await client.from("madrasa_points").select("id").limit(1);
       if (error) {
         setSupabaseStatus("error");
-        toast.error(`Supabase error (${error.code || "401"}): ${error.message}. Please verify your anon key.`);
+        toast.error(`Supabase error (${error.code || "401"}): ${error.message}`);
       } else {
         setSupabaseStatus("success");
         toast.success("Connected to Supabase successfully!");
@@ -298,13 +379,16 @@ export const AdminPage: React.FC = () => {
     }
   };
 
-  const handleSaveQr = async () => {
-    const res = await saveQRCodeSettings(qrSettings);
-    if (res.success) {
-      toast.success("QR Code settings saved!");
-    } else {
-      toast.error("Failed to save QR settings");
-    }
+  const copySqlFix = () => {
+    const sql = `-- Fix Supabase 42501 Permission Denied Error:
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;`;
+    navigator.clipboard.writeText(sql);
+    setCopiedSql(true);
+    toast.success("SQL fix copied to clipboard! Paste into Supabase SQL Editor.");
+    setTimeout(() => setCopiedSql(false), 3000);
   };
 
   // ── Login Screen ──────────────────────────────────────────────────────────
@@ -445,7 +529,7 @@ export const AdminPage: React.FC = () => {
             }`}
           >
             <Crown className="w-4 h-4" />
-            <span>Individual Champions</span>
+            <span>Champions</span>
           </button>
 
           <button
@@ -457,7 +541,31 @@ export const AdminPage: React.FC = () => {
             }`}
           >
             <BookOpen className="w-4 h-4" />
-            <span>Hadeeth Message</span>
+            <span>Hadeeth</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("gpay")}
+            className={`flex items-center gap-1.5 px-3.5 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition whitespace-nowrap ${
+              activeTab === "gpay"
+                ? "border-red-600 text-red-700"
+                : "border-transparent text-neutral-600 hover:text-neutral-900"
+            }`}
+          >
+            <CreditCard className="w-4 h-4" />
+            <span>GPay QR (Funding)</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("footer")}
+            className={`flex items-center gap-1.5 px-3.5 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition whitespace-nowrap ${
+              activeTab === "footer"
+                ? "border-red-600 text-red-700"
+                : "border-transparent text-neutral-600 hover:text-neutral-900"
+            }`}
+          >
+            <Images className="w-4 h-4" />
+            <span>Footer Banners</span>
           </button>
 
           <button
@@ -469,7 +577,7 @@ export const AdminPage: React.FC = () => {
             }`}
           >
             <Database className="w-4 h-4" />
-            <span>Database & Settings</span>
+            <span>Database & Fix</span>
           </button>
         </div>
       </header>
@@ -847,21 +955,288 @@ export const AdminPage: React.FC = () => {
           </div>
         )}
 
-        {/* ── TAB 5: SUPABASE & SETTINGS ──────────────────────────────────── */}
+        {/* ── TAB 5: GPAY QR & FUNDING ────────────────────────────────────── */}
+        {activeTab === "gpay" && (
+          <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-neutral-200 space-y-6">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-black text-neutral-900">GPay QR Code (Public Funding)</h2>
+                <p className="text-xs text-neutral-500">
+                  Upload your Google Pay / PhonePe / UPI QR Code image for Sargamela public funding.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-neutral-700">Display QR Box:</span>
+                <input
+                  type="checkbox"
+                  checked={gpayData.enabled}
+                  onChange={(e) => setGpayData((prev) => ({ ...prev, enabled: e.target.checked }))}
+                  className="w-5 h-5 accent-red-600 rounded cursor-pointer"
+                />
+              </div>
+            </div>
+
+            {/* QR Upload & Preview */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-xl">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 uppercase mb-1">
+                    Section Title (Malayalam)
+                  </label>
+                  <input
+                    type="text"
+                    value={gpayData.title}
+                    onChange={(e) => setGpayData((prev) => ({ ...prev, title: e.target.value }))}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-neutral-300 bg-white font-bold focus:outline-none focus:ring-2 focus:ring-red-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 uppercase mb-1">
+                    Subtitle / Instructions
+                  </label>
+                  <input
+                    type="text"
+                    value={gpayData.subtitle}
+                    onChange={(e) => setGpayData((prev) => ({ ...prev, subtitle: e.target.value }))}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-neutral-300 bg-white focus:outline-none focus:ring-2 focus:ring-red-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 uppercase mb-1">
+                    Upload GPay / UPI QR Image
+                  </label>
+                  <label className="cursor-pointer flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed border-neutral-300 hover:border-red-600 bg-neutral-50 hover:bg-red-50/50 transition">
+                    <Upload className="w-4 h-4 text-neutral-600" />
+                    <span className="text-xs font-bold text-neutral-700">
+                      {uploadingQR ? "Uploading..." : "Select QR Image (PNG/JPG)"}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      disabled={uploadingQR}
+                      onChange={handleQRUpload}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                {gpayData.qrImageUrl && (
+                  <button
+                    onClick={handleDeleteQR}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 transition"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Remove Uploaded QR Image</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Preview Box */}
+              <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-neutral-50 border border-neutral-200 text-center">
+                <span className="text-xs font-bold text-neutral-500 mb-2 uppercase tracking-wider">
+                  Live Preview on Portal
+                </span>
+                <div className="w-44 h-44 bg-[#dc2626] rounded-2xl p-2.5 flex items-center justify-center shadow-md">
+                  <div className="w-full h-full bg-white rounded-xl p-2 flex items-center justify-center overflow-hidden">
+                    {gpayData.qrImageUrl ? (
+                      <img
+                        src={gpayData.qrImageUrl}
+                        alt="GPay QR Preview"
+                        className="w-full h-full object-contain"
+                      />
+                    ) : (
+                      <div className="text-neutral-400 text-center text-xs">
+                        <CreditCard className="w-8 h-8 mx-auto mb-1 text-neutral-300" />
+                        <span>No custom QR image uploaded yet</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button
+                onClick={handleSaveGPaySettings}
+                className="px-6 py-3 bg-red-700 hover:bg-red-800 text-white rounded-xl font-bold text-sm tracking-wide shadow-md transition active:scale-95"
+              >
+                Save GPay QR Settings
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── TAB 6: FOOTER PRESENTATION BANNERS ───────────────────────────── */}
+        {activeTab === "footer" && (
+          <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-neutral-200 space-y-6">
+            <div>
+              <h2 className="text-xl font-black text-neutral-900">Footer Presentation Banners (2 Files)</h2>
+              <p className="text-xs text-neutral-500">
+                Upload up to 2 banner images for the footer. They alternate automatically every 3 to 5 seconds like a presentation slideshow.
+              </p>
+            </div>
+
+            {/* Slideshow Interval Setting */}
+            <div className="max-w-xs space-y-1">
+              <label className="block text-xs font-bold text-neutral-700 uppercase">
+                Slideshow Transition Interval (Seconds)
+              </label>
+              <input
+                type="number"
+                min="2"
+                max="10"
+                value={footerBanners.intervalSeconds}
+                onChange={(e) =>
+                  setFooterBanners((prev) => ({
+                    ...prev,
+                    intervalSeconds: Math.max(2, parseInt(e.target.value) || 4),
+                  }))
+                }
+                className="w-full px-3 py-2 text-xs rounded-xl border border-neutral-300 bg-white font-bold"
+              />
+            </div>
+
+            {/* 2 Banner Slots */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
+              {[0, 1].map((slotIdx) => {
+                const bannerUrl = footerBanners.banners[slotIdx];
+                const isUploading = uploadingBannerSlot === slotIdx;
+
+                return (
+                  <div
+                    key={slotIdx}
+                    className="p-4 rounded-2xl bg-neutral-50 border border-neutral-200 space-y-3 flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-black uppercase text-neutral-800 tracking-wide">
+                          Banner Slot {slotIdx + 1}
+                        </span>
+                        {bannerUrl ? (
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                            Active
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold text-neutral-400 bg-neutral-200 px-2 py-0.5 rounded-full">
+                            Empty
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Image Preview */}
+                      <div className="w-full h-24 rounded-xl bg-white border border-neutral-200 overflow-hidden flex items-center justify-center p-1">
+                        {bannerUrl ? (
+                          <img
+                            src={bannerUrl}
+                            alt={`Banner Slot ${slotIdx + 1}`}
+                            className="w-full h-full object-contain"
+                          />
+                        ) : (
+                          <span className="text-xs text-neutral-400">No image in slot {slotIdx + 1}</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-2">
+                      <label className="flex-1 cursor-pointer inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold transition shadow-xs">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>{isUploading ? "Uploading..." : bannerUrl ? "Replace" : "Upload File"}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          disabled={isUploading}
+                          onChange={(e) => handleBannerUpload(slotIdx, e)}
+                          className="hidden"
+                        />
+                      </label>
+
+                      {bannerUrl && (
+                        <button
+                          onClick={() => handleDeleteBanner(slotIdx)}
+                          className="p-2 rounded-xl bg-red-100 hover:bg-red-200 text-red-700 transition"
+                          title="Remove Banner"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="pt-2">
+              <button
+                onClick={handleSaveFooterSettings}
+                className="px-6 py-3 bg-red-700 hover:bg-red-800 text-white rounded-xl font-bold text-sm tracking-wide shadow-md transition active:scale-95"
+              >
+                Save Footer Presentation Settings
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── TAB 7: SUPABASE & SQL FIX ───────────────────────────────────── */}
         {activeTab === "supabase" && (
           <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-neutral-200 space-y-6">
             <div>
-              <h2 className="text-xl font-black text-neutral-900">Supabase & Portal Settings</h2>
+              <h2 className="text-xl font-black text-neutral-900">Database & Permissions Setup</h2>
               <p className="text-xs text-neutral-500">
-                Connect your Supabase project for real-time PDF storage, point table sync, and global state.
+                Fix Supabase permission errors and manage database credentials.
               </p>
+            </div>
+
+            {/* Error Fix Box: 42501 Permission Denied */}
+            <div className="p-5 rounded-2xl bg-amber-50/80 border border-amber-300 space-y-3">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="text-sm font-black text-amber-950">
+                    Fix: "permission denied for table madrasa_points" (Error 42501 / API DISABLED)
+                  </h3>
+                  <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+                    This error happens because your Supabase PostgreSQL database has not granted API query permissions to the <code className="bg-amber-100 px-1 py-0.5 rounded font-mono font-bold">anon</code> role. Copy the script below, paste it into your <strong>Supabase SQL Editor</strong>, and click <strong>Run</strong>.
+                  </p>
+                </div>
+              </div>
+
+              {/* Code snippet */}
+              <div className="relative bg-neutral-900 rounded-xl p-3.5 text-neutral-100 font-mono text-xs overflow-x-auto">
+                <pre>{`-- Grant access to PostgREST roles:
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;`}</pre>
+                <button
+                  onClick={copySqlFix}
+                  className="absolute top-2.5 right-2.5 flex items-center gap-1 px-3 py-1.5 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-white text-xs font-bold transition shadow-xs"
+                >
+                  {copiedSql ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedSql ? "Copied!" : "Copy SQL"}</span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <a
+                  href={`https://supabase.com/dashboard/project/${supabaseUrl.replace("https://", "").replace("http://", "").split(".")[0] || "crtwzspocieaimtnwfsl"}/sql/new`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-800 hover:bg-amber-900 text-white rounded-lg text-xs font-bold transition shadow-xs"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Open Supabase SQL Editor &rarr;</span>
+                </a>
+              </div>
             </div>
 
             {/* Supabase Connection Form */}
             <div className="space-y-4 max-w-xl p-5 rounded-2xl bg-neutral-50 border border-neutral-200">
               <div className="flex items-center gap-2 text-sm font-bold text-neutral-900">
                 <Database className="w-4 h-4 text-emerald-600" />
-                <span>Supabase Database & Storage Credentials</span>
+                <span>Supabase Database Credentials</span>
               </div>
 
               <div>
@@ -913,72 +1288,11 @@ export const AdminPage: React.FC = () => {
                 </button>
               </div>
 
-              {/* Helpful 401 resolution guidance */}
-              <div className="bg-amber-50 p-3.5 rounded-xl border border-amber-200 text-xs text-amber-900 space-y-1.5">
-                <p className="font-bold">⚠️ If you see a 401 Unauthorized Error:</p>
-                <p className="text-[11px] text-amber-800 leading-relaxed">
-                  Supabase returns <strong>401 Unauthorized</strong> when the <strong>Anon Key</strong> entered is invalid, incomplete, or expired.
-                  Make sure you copy the <strong>anon public</strong> key (a long JWT starting with <code className="bg-amber-100 px-1 py-0.5 rounded">eyJhb...</code>), not the database password or service_role secret.
-                </p>
-                {supabaseUrl && supabaseUrl.includes(".supabase.co") && (
-                  <a
-                    href={`https://supabase.com/dashboard/project/${supabaseUrl.replace("https://", "").replace("http://", "").split(".")[0]}/settings/api`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 font-bold text-amber-900 underline hover:text-black pt-1 block"
-                  >
-                    <span>Click here to open your Supabase API Keys page &rarr;</span>
-                  </a>
-                )}
-              </div>
-
               <div className="text-[11px] text-neutral-500 pt-2 border-t border-neutral-200">
                 <p>
-                  <strong>Tip:</strong> Run the provided <code className="bg-neutral-200 px-1 py-0.5 rounded font-mono">supabase_schema.sql</code> in your Supabase SQL Editor to automatically create tables and the storage bucket!
+                  <strong>Note:</strong> If Supabase is not connected or gives permission errors, the app runs smoothly with the built-in fast local storage fallback.
                 </p>
               </div>
-            </div>
-
-            {/* QR Code Settings */}
-            <div className="space-y-4 max-w-xl p-5 rounded-2xl bg-neutral-50 border border-neutral-200">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 text-sm font-bold text-neutral-900">
-                  <QrCode className="w-4 h-4 text-red-600" />
-                  <span>Portal QR Code Settings</span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-neutral-600">Show on Site:</span>
-                  <input
-                    type="checkbox"
-                    checked={qrSettings.enabled}
-                    onChange={(e) =>
-                      setQrSettings((prev) => ({ ...prev, enabled: e.target.checked }))
-                    }
-                    className="w-4 h-4 accent-red-600 rounded cursor-pointer"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-neutral-700 uppercase mb-1">
-                  QR Destination URL
-                </label>
-                <input
-                  type="text"
-                  value={qrSettings.url}
-                  onChange={(e) => setQrSettings((prev) => ({ ...prev, url: e.target.value }))}
-                  placeholder="https://paravoor-complex-sargamela.netlify.app/"
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-neutral-300 bg-white font-mono focus:outline-none focus:ring-2 focus:ring-red-600"
-                />
-              </div>
-
-              <button
-                onClick={handleSaveQr}
-                className="px-4 py-2 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold rounded-xl transition"
-              >
-                Save QR Settings
-              </button>
             </div>
           </div>
         )}

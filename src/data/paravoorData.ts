@@ -42,3 +42,29 @@ export interface ProgramResultEntry {
   pdfName?: string;
   updatedAt?: string;
 }
+
+export interface GPayQRData {
+  enabled: boolean;
+  qrImageUrl?: string;
+  upiId?: string;
+  title: string;
+  subtitle: string;
+}
+
+export const DEFAULT_GPAY_QR: GPayQRData = {
+  enabled: true,
+  title: "മദ്രസ സർഗമേള 2026",
+  subtitle: "സഹായ സംഭാവനകൾ അയക്കുവാൻ സ്കാൻ ചെയ്യുക (GPay / UPI)",
+  qrImageUrl: "",
+  upiId: "",
+};
+
+export interface FooterBannersData {
+  intervalSeconds: number;
+  banners: string[];
+}
+
+export const DEFAULT_FOOTER_BANNERS: FooterBannersData = {
+  intervalSeconds: 4,
+  banners: ["/conference-footer.png"],
+};
