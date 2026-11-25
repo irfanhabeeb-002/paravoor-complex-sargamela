@@ -18,6 +18,7 @@ import {
 import {
   getSupabaseConfig,
   saveSupabaseConfig,
+  clearSupabaseConfig,
   getSupabaseClient,
   isSupabaseConfigured,
 } from "@/lib/supabase";
@@ -29,7 +30,13 @@ import {
   ProgramResultEntry,
   IndividualChampionEntry,
 } from "@/data/paravoorData";
-import { ALL_PROGRAMS, PROGRAM_CATEGORIES, SargamelaProgram } from "@/data/programsData";
+import {
+  ALL_PROGRAMS,
+  PROGRAM_CATEGORIES,
+  SargamelaProgram,
+  CATEGORY_STYLES,
+  ProgramCategory,
+} from "@/data/programsData";
 import { toast } from "sonner";
 import {
   Trophy,
@@ -151,7 +158,11 @@ export const AdminPage: React.FC = () => {
     if (res.success) {
       toast.success("Point table updated successfully!");
     } else {
-      toast.error("Failed to sync to Supabase: " + res.error);
+      if (res.error?.includes("401") || res.error?.includes("JWT") || res.error?.includes("API key")) {
+        toast.warning("Points saved in Local Storage! (Supabase returned 401: Please check Anon Key in Settings)");
+      } else {
+        toast.error("Failed to sync to Supabase: " + res.error);
+      }
     }
   };
 
@@ -181,17 +192,28 @@ export const AdminPage: React.FC = () => {
   };
 
   const handleDeletePdf = async (programId: number) => {
-    if (!confirm(`Are you sure you want to remove the result PDF for Program #${programId}?`)) {
+    if (!confirm(`Are you sure you want to delete the result PDF for Program #${programId}?`)) {
       return;
     }
 
+    // Instantly update UI state with zero latency
+    setResultsMap((prev) => ({
+      ...prev,
+      [programId]: {
+        ...prev[programId],
+        pdfUrl: undefined,
+        pdfName: undefined,
+        updatedAt: new Date().toISOString(),
+      },
+    }));
+
     const res = await deleteProgramPdf(programId);
     if (res.success) {
-      toast.success(`Result PDF removed for Program #${programId}`);
+      toast.success(`Result PDF deleted for Program #${programId}`);
       const updated = await fetchProgramResults();
       setResultsMap(updated);
     } else {
-      toast.error("Failed to delete result PDF");
+      toast.error("Failed to delete result PDF: " + (res.error || ""));
     }
   };
 
@@ -240,7 +262,15 @@ export const AdminPage: React.FC = () => {
   // ── Supabase & Settings ───────────────────────────────────────────────────
   const handleSaveSupabase = () => {
     saveSupabaseConfig(supabaseUrl, supabaseKey);
-    toast.success("Supabase credentials saved locally!");
+    toast.success("Supabase credentials saved!");
+  };
+
+  const handleClearSupabase = () => {
+    clearSupabaseConfig();
+    setSupabaseUrl("");
+    setSupabaseKey("");
+    setSupabaseStatus("idle");
+    toast.success("Supabase disconnected. Using Local Storage fallback.");
   };
 
   const handleTestSupabase = async () => {
@@ -257,7 +287,7 @@ export const AdminPage: React.FC = () => {
       const { data, error } = await client.from("madrasa_points").select("id").limit(1);
       if (error) {
         setSupabaseStatus("error");
-        toast.error(`Supabase connection error: ${error.message}`);
+        toast.error(`Supabase error (${error.code || "401"}): ${error.message}. Please verify your anon key.`);
       } else {
         setSupabaseStatus("success");
         toast.success("Connected to Supabase successfully!");
@@ -545,6 +575,7 @@ export const AdminPage: React.FC = () => {
                 const res = resultsMap[prog.id];
                 const hasPdf = Boolean(res?.pdfUrl);
                 const isUploading = uploadingId === prog.id;
+                const catStyle = CATEGORY_STYLES[prog.category];
 
                 return (
                   <div
@@ -552,27 +583,32 @@ export const AdminPage: React.FC = () => {
                     className="p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-neutral-50/80 transition"
                   >
                     <div className="flex items-start gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-[#8cc63f] text-neutral-900 font-black text-sm flex items-center justify-center shrink-0">
+                      <div
+                        className="w-10 h-10 rounded-xl text-white font-black text-sm flex items-center justify-center shrink-0 shadow-xs"
+                        style={{ backgroundColor: catStyle.bgHex }}
+                      >
                         {prog.id}
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold uppercase tracking-wider text-neutral-500 bg-neutral-100 px-2 py-0.5 rounded">
+                          <span
+                            className={`text-[11px] font-black uppercase tracking-wider px-2 py-0.5 rounded border ${catStyle.badgeClass}`}
+                          >
                             {prog.category}
                           </span>
                           {hasPdf ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-                              <CheckCircle className="w-3 h-3" /> Result Published
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                              <CheckCircle className="w-3 h-3 text-emerald-600" /> Result Published
                             </span>
                           ) : (
-                            <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
+                            <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
                               Pending
                             </span>
                           )}
                         </div>
                         <h4 className="font-bold text-neutral-900 text-sm mt-1">{prog.name}</h4>
                         {res?.pdfName && (
-                          <span className="text-[11px] text-neutral-400 font-medium block">
+                          <span className="text-[11px] text-neutral-500 font-medium block">
                             File: {res.pdfName}
                           </span>
                         )}
@@ -586,15 +622,16 @@ export const AdminPage: React.FC = () => {
                           href={res.pdfUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="p-2 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-neutral-700 transition"
+                          className="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-xs font-bold transition"
                           title="View Uploaded PDF"
                         >
-                          <ExternalLink className="w-4 h-4" />
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          <span>View</span>
                         </a>
                       )}
 
                       {/* File upload input */}
-                      <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold transition active:scale-95">
+                      <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold transition active:scale-95 shadow-xs">
                         {isUploading ? (
                           <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                         ) : (
@@ -613,10 +650,11 @@ export const AdminPage: React.FC = () => {
                       {hasPdf && (
                         <button
                           onClick={() => handleDeletePdf(prog.id)}
-                          className="p-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 transition"
+                          className="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-red-100 hover:bg-red-200 text-red-700 text-xs font-bold transition active:scale-95 shadow-xs"
                           title="Delete PDF"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Delete</span>
                         </button>
                       )}
                     </div>
@@ -852,7 +890,7 @@ export const AdminPage: React.FC = () => {
                 />
               </div>
 
-              <div className="flex items-center gap-3 pt-2">
+              <div className="flex flex-wrap items-center gap-3 pt-2">
                 <button
                   onClick={handleSaveSupabase}
                   className="px-4 py-2 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold rounded-xl transition"
@@ -867,6 +905,31 @@ export const AdminPage: React.FC = () => {
                   {supabaseStatus === "testing" && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                   <span>Test Connection</span>
                 </button>
+                <button
+                  onClick={handleClearSupabase}
+                  className="px-4 py-2 bg-neutral-200 hover:bg-neutral-300 text-neutral-800 text-xs font-bold rounded-xl transition"
+                >
+                  Clear / Disconnect
+                </button>
+              </div>
+
+              {/* Helpful 401 resolution guidance */}
+              <div className="bg-amber-50 p-3.5 rounded-xl border border-amber-200 text-xs text-amber-900 space-y-1.5">
+                <p className="font-bold">⚠️ If you see a 401 Unauthorized Error:</p>
+                <p className="text-[11px] text-amber-800 leading-relaxed">
+                  Supabase returns <strong>401 Unauthorized</strong> when the <strong>Anon Key</strong> entered is invalid, incomplete, or expired.
+                  Make sure you copy the <strong>anon public</strong> key (a long JWT starting with <code className="bg-amber-100 px-1 py-0.5 rounded">eyJhb...</code>), not the database password or service_role secret.
+                </p>
+                {supabaseUrl && supabaseUrl.includes(".supabase.co") && (
+                  <a
+                    href={`https://supabase.com/dashboard/project/${supabaseUrl.replace("https://", "").replace("http://", "").split(".")[0]}/settings/api`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-bold text-amber-900 underline hover:text-black pt-1 block"
+                  >
+                    <span>Click here to open your Supabase API Keys page &rarr;</span>
+                  </a>
+                )}
               </div>
 
               <div className="text-[11px] text-neutral-500 pt-2 border-t border-neutral-200">

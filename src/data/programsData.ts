@@ -1,5 +1,63 @@
 export type ProgramCategory = "Kids" | "Children" | "Sub Junior" | "Junior" | "Senior";
 
+export interface CategoryStyle {
+  name: ProgramCategory;
+  bgHex: string;
+  bgClass: string;
+  activeFilterClass: string;
+  inactiveFilterClass: string;
+  badgeClass: string;
+  ringClass: string;
+}
+
+export const CATEGORY_STYLES: Record<ProgramCategory, CategoryStyle> = {
+  Kids: {
+    name: "Kids",
+    bgHex: "#f59e0b",
+    bgClass: "bg-amber-500 hover:bg-amber-600 text-white",
+    activeFilterClass: "bg-amber-500 text-white shadow-md ring-2 ring-amber-300",
+    inactiveFilterClass: "bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100",
+    badgeClass: "bg-amber-100 text-amber-900 border-amber-300",
+    ringClass: "ring-amber-400",
+  },
+  Children: {
+    name: "Children",
+    bgHex: "#0284c7",
+    bgClass: "bg-sky-600 hover:bg-sky-700 text-white",
+    activeFilterClass: "bg-sky-600 text-white shadow-md ring-2 ring-sky-300",
+    inactiveFilterClass: "bg-sky-50 text-sky-800 border border-sky-200 hover:bg-sky-100",
+    badgeClass: "bg-sky-100 text-sky-900 border-sky-300",
+    ringClass: "ring-sky-400",
+  },
+  "Sub Junior": {
+    name: "Sub Junior",
+    bgHex: "#10b981",
+    bgClass: "bg-emerald-600 hover:bg-emerald-700 text-white",
+    activeFilterClass: "bg-emerald-600 text-white shadow-md ring-2 ring-emerald-300",
+    inactiveFilterClass: "bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100",
+    badgeClass: "bg-emerald-100 text-emerald-900 border-emerald-300",
+    ringClass: "ring-emerald-400",
+  },
+  Junior: {
+    name: "Junior",
+    bgHex: "#7c3aed",
+    bgClass: "bg-purple-600 hover:bg-purple-700 text-white",
+    activeFilterClass: "bg-purple-600 text-white shadow-md ring-2 ring-purple-300",
+    inactiveFilterClass: "bg-purple-50 text-purple-800 border border-purple-200 hover:bg-purple-100",
+    badgeClass: "bg-purple-100 text-purple-900 border-purple-300",
+    ringClass: "ring-purple-400",
+  },
+  Senior: {
+    name: "Senior",
+    bgHex: "#e11d48",
+    bgClass: "bg-rose-600 hover:bg-rose-700 text-white",
+    activeFilterClass: "bg-rose-600 text-white shadow-md ring-2 ring-rose-300",
+    inactiveFilterClass: "bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100",
+    badgeClass: "bg-rose-100 text-rose-900 border-rose-300",
+    ringClass: "ring-rose-400",
+  },
+};
+
 export interface SargamelaProgram {
   id: number;
   name: string;

@@ -7,10 +7,15 @@ export interface SupabaseConfig {
   anonKey: string;
 }
 
+const cleanValue = (val: string): string => {
+  if (!val) return "";
+  return val.trim().replace(/^["']|["']$/g, "");
+};
+
 export const getSupabaseConfig = (): SupabaseConfig => {
   // 1. Check env vars
-  const envUrl = import.meta.env.VITE_SUPABASE_URL || "";
-  const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
+  const envUrl = cleanValue(import.meta.env.VITE_SUPABASE_URL || "");
+  const envKey = cleanValue(import.meta.env.VITE_SUPABASE_ANON_KEY || "");
 
   if (envUrl && envKey) {
     return { url: envUrl, anonKey: envKey };
@@ -22,7 +27,10 @@ export const getSupabaseConfig = (): SupabaseConfig => {
     if (saved) {
       const parsed = JSON.parse(saved);
       if (parsed.url && parsed.anonKey) {
-        return parsed;
+        return {
+          url: cleanValue(parsed.url),
+          anonKey: cleanValue(parsed.anonKey),
+        };
       }
     }
   } catch {
@@ -33,8 +41,24 @@ export const getSupabaseConfig = (): SupabaseConfig => {
 };
 
 export const saveSupabaseConfig = (url: string, anonKey: string): void => {
-  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({ url: url.trim(), anonKey: anonKey.trim() }));
-  supabaseClientInstance = null; // Reset instance so it re-initializes
+  const cleanedUrl = cleanValue(url);
+  const cleanedKey = cleanValue(anonKey);
+
+  if (!cleanedUrl && !cleanedKey) {
+    localStorage.removeItem(LOCAL_STORAGE_KEY);
+  } else {
+    localStorage.setItem(
+      LOCAL_STORAGE_KEY,
+      JSON.stringify({ url: cleanedUrl, anonKey: cleanedKey })
+    );
+  }
+
+  supabaseClientInstance = null; // Reset instance
+};
+
+export const clearSupabaseConfig = (): void => {
+  localStorage.removeItem(LOCAL_STORAGE_KEY);
+  supabaseClientInstance = null;
 };
 
 let supabaseClientInstance: SupabaseClient | null = null;
@@ -48,7 +72,17 @@ export const getSupabaseClient = (): SupabaseClient | null => {
   }
 
   try {
-    supabaseClientInstance = createClient(url, anonKey);
+    supabaseClientInstance = createClient(url, anonKey, {
+      auth: {
+        persistSession: false, // Prevents expired auth tokens from overriding anon key
+        autoRefreshToken: false,
+      },
+      global: {
+        headers: {
+          apikey: anonKey,
+        },
+      },
+    });
     return supabaseClientInstance;
   } catch (err) {
     console.error("Failed to initialize Supabase client:", err);

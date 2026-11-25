@@ -1,5 +1,11 @@
 import React, { useState } from "react";
-import { ALL_PROGRAMS, PROGRAM_CATEGORIES, SargamelaProgram, ProgramCategory } from "@/data/programsData";
+import {
+  ALL_PROGRAMS,
+  PROGRAM_CATEGORIES,
+  SargamelaProgram,
+  ProgramCategory,
+  CATEGORY_STYLES,
+} from "@/data/programsData";
 import { ProgramResultEntry } from "@/data/paravoorData";
 import {
   Dialog,
@@ -8,7 +14,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { FileText, ExternalLink, Download, Clock } from "lucide-react";
+import { FileText, ExternalLink, Download, Clock, CheckCircle2 } from "lucide-react";
 
 interface ProgramResultsGridProps {
   resultsMap: Record<number, ProgramResultEntry>;
@@ -26,6 +32,7 @@ export const ProgramResultsGrid: React.FC<ProgramResultsGridProps> = ({ resultsM
 
   const activeResult = activeProgram ? resultsMap[activeProgram.id] : undefined;
   const hasPdf = Boolean(activeResult?.pdfUrl);
+  const activeStyle = activeProgram ? CATEGORY_STYLES[activeProgram.category] : null;
 
   return (
     <section className="w-full my-6">
@@ -34,67 +41,112 @@ export const ProgramResultsGrid: React.FC<ProgramResultsGridProps> = ({ resultsM
         Individual Program Results
       </h2>
 
-      {/* Filter Tabs */}
+      {/* Filter Tabs with matching Category Colors */}
       <div className="flex items-center justify-start sm:justify-center gap-1.5 overflow-x-auto pb-3 mb-4 no-scrollbar px-1">
         {PROGRAM_CATEGORIES.map((cat) => {
-          const isActive = selectedCategory.toLowerCase() === cat.key.toLowerCase();
+          const isSelected = selectedCategory.toLowerCase() === cat.key.toLowerCase();
+
+          if (cat.key === "All") {
+            return (
+              <button
+                key={cat.key}
+                onClick={() => setSelectedCategory("All")}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap active:scale-95 ${
+                  isSelected
+                    ? "bg-neutral-900 text-white shadow-md ring-2 ring-neutral-400"
+                    : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
+                }`}
+              >
+                ALL
+              </button>
+            );
+          }
+
+          const catStyle = CATEGORY_STYLES[cat.key as ProgramCategory];
+
           return (
             <button
               key={cat.key}
               onClick={() => setSelectedCategory(cat.key)}
-              className={`px-3 py-1.5 rounded-full text-xs sm:text-sm font-bold uppercase transition-all whitespace-nowrap active:scale-95 ${
-                isActive
-                  ? "bg-neutral-900 text-white shadow-md"
-                  : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+              className={`px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap active:scale-95 flex items-center gap-1.5 ${
+                isSelected
+                  ? catStyle.activeFilterClass
+                  : catStyle.inactiveFilterClass
               }`}
             >
-              {cat.label}
+              <span
+                className="w-2 h-2 rounded-full shrink-0"
+                style={{ backgroundColor: catStyle.bgHex }}
+              />
+              <span>{cat.label}</span>
             </button>
           );
         })}
       </div>
 
-      {/* 7-column Grid */}
+      {/* 7-column Grid with matching Category Colors */}
       <div className="grid grid-cols-7 gap-2 sm:gap-2.5 max-w-md mx-auto">
         {filteredPrograms.map((program) => {
           const result = resultsMap[program.id];
           const isPublished = Boolean(result?.pdfUrl);
+          const style = CATEGORY_STYLES[program.category];
 
           return (
             <button
               key={program.id}
               onClick={() => setActiveProgram(program)}
-              className={`relative aspect-square rounded-xl flex flex-col items-center justify-center font-black text-lg sm:text-xl transition-all shadow-xs active:scale-95 select-none ${
+              className={`relative aspect-square rounded-xl flex flex-col items-center justify-center font-black text-lg sm:text-xl transition-all shadow-sm active:scale-95 select-none ${style.bgClass} ${
                 isPublished
-                  ? "bg-[#7db343] text-white hover:bg-[#6fa338] ring-2 ring-[#5e8c30] ring-offset-1"
-                  : "bg-[#8cc63f] text-neutral-900 hover:bg-[#7db343]"
+                  ? "ring-2 ring-white ring-offset-2 ring-offset-neutral-800 shadow-md"
+                  : "opacity-95 hover:opacity-100"
               }`}
               title={`${program.id}. ${program.name} (${program.category})`}
             >
-              <span>{program.id}</span>
+              <span className="drop-shadow-xs">{program.id}</span>
               {isPublished && (
-                <span className="absolute top-1 right-1 w-2 h-2 bg-white rounded-full shadow-xs animate-pulse" />
+                <span
+                  className="absolute top-1 right-1 w-2.5 h-2.5 bg-white rounded-full shadow-xs ring-1 ring-black/20 animate-pulse"
+                  title="Result published"
+                />
               )}
             </button>
           );
         })}
       </div>
 
+      {/* Category Legend */}
+      <div className="flex flex-wrap items-center justify-center gap-2 mt-4 pt-2 text-[11px] font-bold text-neutral-600">
+        {(["Kids", "Children", "Sub Junior", "Junior", "Senior"] as ProgramCategory[]).map((c) => (
+          <span key={c} className="flex items-center gap-1">
+            <span
+              className="w-2.5 h-2.5 rounded-sm inline-block"
+              style={{ backgroundColor: CATEGORY_STYLES[c].bgHex }}
+            />
+            <span>{c}</span>
+          </span>
+        ))}
+      </div>
+
       {/* Program Result PDF Dialog */}
       <Dialog open={activeProgram !== null} onOpenChange={(open) => !open && setActiveProgram(null)}>
         <DialogContent className="max-w-lg w-[95vw] max-h-[90vh] flex flex-col p-4 sm:p-6 rounded-3xl">
-          {activeProgram && (
+          {activeProgram && activeStyle && (
             <>
               <DialogHeader className="text-left pb-2 border-b">
                 <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-0.5 rounded-full bg-neutral-900 text-white text-xs font-bold">
+                  <span
+                    className="px-2.5 py-0.5 rounded-full text-white text-xs font-black shadow-xs"
+                    style={{ backgroundColor: activeStyle.bgHex }}
+                  >
                     #{activeProgram.id}
                   </span>
-                  <span className="px-2.5 py-0.5 rounded-full bg-[#8cc63f] text-neutral-900 text-xs font-bold">
+                  <span
+                    className={`px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider border ${activeStyle.badgeClass}`}
+                  >
                     {activeProgram.category}
                   </span>
                 </div>
-                <DialogTitle className="text-lg sm:text-xl font-bold mt-2 text-neutral-900 leading-snug">
+                <DialogTitle className="text-lg sm:text-xl font-black mt-2 text-neutral-900 leading-snug">
                   {activeProgram.name}
                 </DialogTitle>
                 <DialogDescription className="text-xs text-neutral-500">

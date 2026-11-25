@@ -222,36 +222,53 @@ export const uploadProgramPdf = async (
 export const deleteProgramPdf = async (
   programId: number
 ): Promise<{ success: boolean; error?: string }> => {
+  const program = ALL_PROGRAMS.find((p) => p.id === programId);
+
+  // 1. Immediately update localStorage
+  try {
+    const cached = localStorage.getItem(LS_PROGRAMS_KEY);
+    const map = cached ? JSON.parse(cached) : {};
+    if (map[programId]) {
+      delete map[programId].pdfUrl;
+      delete map[programId].pdfName;
+      map[programId].status = "pending";
+      map[programId].updatedAt = new Date().toISOString();
+    } else {
+      map[programId] = {
+        programId,
+        programName: program?.name || "",
+        category: program?.category || "",
+        status: "pending",
+        updatedAt: new Date().toISOString(),
+      };
+    }
+    localStorage.setItem(LS_PROGRAMS_KEY, JSON.stringify(map));
+  } catch (err) {
+    console.error("Local storage delete error:", err);
+  }
+
+  notifyDataChange("programs");
+
+  // 2. Update Supabase if client is configured
   const client = getSupabaseClient();
   if (client) {
     try {
-      await client.from("program_results").update({
-        pdf_url: null,
-        pdf_name: null,
-        status: "pending",
-        updated_at: new Date().toISOString(),
-      }).eq("program_id", programId);
+      if (program) {
+        await client.from("program_results").upsert({
+          program_id: programId,
+          program_name: program.name,
+          category: program.category,
+          pdf_url: null,
+          pdf_name: null,
+          status: "pending",
+          updated_at: new Date().toISOString(),
+        });
+      }
     } catch (err) {
       console.warn("Supabase delete warning:", err);
     }
   }
 
-  try {
-    const cached = localStorage.getItem(LS_PROGRAMS_KEY);
-    if (cached) {
-      const map = JSON.parse(cached);
-      if (map[programId]) {
-        delete map[programId].pdfUrl;
-        delete map[programId].pdfName;
-        map[programId].updatedAt = new Date().toISOString();
-        localStorage.setItem(LS_PROGRAMS_KEY, JSON.stringify(map));
-      }
-    }
-  } catch {
-    // ignore
-  }
-
-  notifyDataChange("programs");
   return { success: true };
 };
 
