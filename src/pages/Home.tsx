@@ -13,6 +13,7 @@ import {
   fetchIndividualChampions,
   fetchGPayQR,
   fetchFooterBanners,
+  subscribeToAllRealtimeData,
   DATA_CHANGE_EVENT,
   ChampionsSettings,
 } from "@/lib/dataService";
@@ -64,13 +65,24 @@ const Home: React.FC = () => {
   useEffect(() => {
     loadAllData();
 
-    // Listen for local/realtime data changes
+    // 1. Subscribe to Real-Time Updates (Supabase websockets + cross-tab broadcast + 3.5s auto polling)
+    const unsubscribe = subscribeToAllRealtimeData((payload) => {
+      if (payload.points) setPoints(payload.points);
+      if (payload.resultsMap) setResultsMap(payload.resultsMap);
+      if (payload.hadeeth) setHadeeth(payload.hadeeth);
+      if (payload.champions) setChampions(payload.champions);
+      if (payload.gpay) setGpayData(payload.gpay);
+      if (payload.banners) setFooterBanners(payload.banners);
+    });
+
+    // 2. Local window event listener
     const handleDataChange = () => {
       loadAllData();
     };
 
     window.addEventListener(DATA_CHANGE_EVENT, handleDataChange);
     return () => {
+      unsubscribe();
       window.removeEventListener(DATA_CHANGE_EVENT, handleDataChange);
     };
   }, []);

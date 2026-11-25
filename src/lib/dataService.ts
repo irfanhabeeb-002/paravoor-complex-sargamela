@@ -26,6 +26,13 @@ export const DATA_CHANGE_EVENT = "paravoor_data_changed";
 
 export const notifyDataChange = (type: string) => {
   window.dispatchEvent(new CustomEvent(DATA_CHANGE_EVENT, { detail: { type } }));
+  try {
+    const bc = new BroadcastChannel("paravoor_realtime_sync");
+    bc.postMessage({ type });
+    bc.close();
+  } catch {
+    // ignore
+  }
 };
 
 // ── 1. Madrasa Points ────────────────────────────────────────────────────────
@@ -600,5 +607,126 @@ export const deleteFooterBannerImage = async (
   const updated = { ...current, banners: newBanners };
   await saveFooterBanners(updated);
   return { success: true };
+};
+
+// ── 8. Real-Time Auto Sync Engine (No Manual Refresh Needed) ────────────────
+export interface RealtimeDataPayload {
+  points?: MadrasaPointEntry[];
+  resultsMap?: Record<number, ProgramResultEntry>;
+  hadeeth?: HadeethData;
+  champions?: ChampionsSettings;
+  gpay?: GPayQRData;
+  banners?: FooterBannersData;
+}
+
+export const subscribeToAllRealtimeData = (
+  onData: (payload: RealtimeDataPayload) => void
+): (() => void) => {
+  const client = getSupabaseClient();
+  let channel: any = null;
+
+  // 1. Supabase WebSockets (instant push from Postgres changes)
+  if (client) {
+    try {
+      channel = client
+        .channel("realtime-portal-sync")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "madrasa_points" },
+          async () => {
+            const points = await fetchMadrasaPoints();
+            onData({ points });
+          }
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "program_results" },
+          async () => {
+            const resultsMap = await fetchProgramResults();
+            onData({ resultsMap });
+          }
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "site_settings" },
+          async () => {
+            const [had, champ, gpay, banners] = await Promise.all([
+              fetchHadeeth(),
+              fetchIndividualChampions(),
+              fetchGPayQR(),
+              fetchFooterBanners(),
+            ]);
+            onData({ hadeeth: had, champions: champ, gpay, banners });
+          }
+        )
+        .subscribe();
+    } catch (err) {
+      console.warn("Realtime subscription warning:", err);
+    }
+  }
+
+  // 2. BroadcastChannel: Instant sync between multiple browser tabs on same device
+  let bc: BroadcastChannel | null = null;
+  try {
+    bc = new BroadcastChannel("paravoor_realtime_sync");
+    bc.onmessage = async (e) => {
+      const type = e.data?.type;
+      if (type === "points") {
+        const points = await fetchMadrasaPoints();
+        onData({ points });
+      } else if (type === "programs") {
+        const resultsMap = await fetchProgramResults();
+        onData({ resultsMap });
+      } else {
+        const [pts, res, had, champ, gpay, banners] = await Promise.all([
+          fetchMadrasaPoints(),
+          fetchProgramResults(),
+          fetchHadeeth(),
+          fetchIndividualChampions(),
+          fetchGPayQR(),
+          fetchFooterBanners(),
+        ]);
+        onData({ points: pts, resultsMap: res, hadeeth: had, champions: champ, gpay, banners });
+      }
+    };
+  } catch {
+    // ignore
+  }
+
+  // 3. Storage event: Detects localStorage changes across tabs immediately
+  const handleStorage = (e: StorageEvent) => {
+    if (e.key === LS_POINTS_KEY && e.newValue) {
+      try {
+        onData({ points: JSON.parse(e.newValue) });
+      } catch {}
+    } else if (e.key === LS_PROGRAMS_KEY && e.newValue) {
+      try {
+        onData({ resultsMap: JSON.parse(e.newValue) });
+      } catch {}
+    }
+  };
+  window.addEventListener("storage", handleStorage);
+
+  // 4. Background polling fallback (runs every 3.5 seconds)
+  // Guarantees all spectators' screens refresh automatically without user touching the screen
+  const pollTimer = setInterval(async () => {
+    try {
+      const points = await fetchMadrasaPoints();
+      onData({ points });
+    } catch {
+      // silently ignore
+    }
+  }, 3500);
+
+  return () => {
+    if (channel && client) {
+      client.removeChannel(channel);
+    }
+    if (bc) {
+      bc.close();
+    }
+    window.removeEventListener("storage", handleStorage);
+    clearInterval(pollTimer);
+  };
 };
 

@@ -87,6 +87,23 @@ ON CONFLICT (key) DO NOTHING;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
 
+-- Enable Realtime replication for all tables so WebSockets broadcast score updates instantly
+DO $$
+BEGIN
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.madrasa_points;
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END;
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.program_results;
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END;
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.site_settings;
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END;
+END $$;
+
 -- 5. Storage Bucket Setup for PDF files & Images
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('sargamela-results', 'sargamela-results', true)
