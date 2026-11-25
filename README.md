@@ -40,9 +40,11 @@ Official mobile-first results portal and admin desk for **KNM Paravoor Complex M
 
 ---
 
-## 🔐 Distinct Admin Desk (`/admin`)
+## 🔐 Hidden Admin Desk
 
-- Route: `/admin` (Default passcode: `paravoor2026`)
+- Secret Route: `/pvr-control-desk-9482` (Default passcode: `paravoor2026`)
+- Access: `https://paravoor-complex-sargamela.netlify.app/#/pvr-control-desk-9482`
+- *No public buttons or links are exposed anywhere on the visitor site.*
 - **Features**:
   - **Overall Point Table**: Update points for the 4 madrasas.
   - **Program PDF Upload**: Upload, view, and delete official result PDFs for each program (1 to 63).

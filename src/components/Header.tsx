@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Lock, Radio } from "lucide-react";
+import { Radio } from "lucide-react";
 
 export const Header: React.FC = () => {
   return (
@@ -22,15 +22,6 @@ export const Header: React.FC = () => {
                 KNM Paravoor Complex
               </span>
             </div>
-          </Link>
-
-          <Link
-            to="/admin"
-            className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold text-neutral-600 hover:text-neutral-900 bg-neutral-100 hover:bg-neutral-200 transition"
-            title="Admin Desk"
-          >
-            <Lock className="w-3.5 h-3.5" />
-            <span>Admin</span>
           </Link>
         </div>
       </div>

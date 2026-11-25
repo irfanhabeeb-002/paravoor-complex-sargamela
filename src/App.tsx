@@ -20,8 +20,13 @@ const App = () => (
           <Route path="/" element={<Home />} />
           <Route path="/results" element={<Navigate to="/" replace />} />
 
-          {/* Distinct Admin Route for Paravoor Complex */}
-          <Route path="/admin" element={<AdminPage />} />
+          {/* Secret Obfuscated Admin Route */}
+          <Route path="/pvr-control-desk-9482" element={<AdminPage />} />
+
+          {/* Obscure standard admin routes by redirecting to home */}
+          <Route path="/admin" element={<Navigate to="/" replace />} />
+          <Route path="/admin/*" element={<Navigate to="/" replace />} />
+          <Route path="/login" element={<Navigate to="/" replace />} />
 
           {/* Fallback */}
           <Route path="*" element={<NotFound />} />
