@@ -70,7 +70,7 @@ INSERT INTO public.site_settings (key, value)
 VALUES
   ('hadeeth', '{"arabic": "مَنْ سَلَكَ طَرِيقًا يَلْتَمِسُ فِيهِ عِلْمًا سَهَّلَ اللَّهُ لَهُ بِهِ طَرِيقًا إِلَى الْجَنَّةِ", "malayalam": "ആരെങ്കിലും അറിവ് തേടി ഒരു വഴിയിലൂടെ സഞ്ചരിച്ചാൽ, അല്ലാഹു അവന് സ്വർഗ്ഗത്തിലേക്കുള്ള വഴി എളുപ്പമാക്കിക്കൊടുക്കും.", "reference": "സ്വഹീഹ് മുസ്‌ലിം: 2699", "enabled": true}'::jsonb),
   ('individual_champions', '{"enabled": false, "champions": []}'::jsonb),
-  ('qr_code', '{"url": "https://paravoor-sargamela.msmernakulam.in/", "enabled": true}'::jsonb)
+  ('qr_code', '{"url": "https://paravoor-complex-sargamela.netlify.app/", "enabled": true}'::jsonb)
 ON CONFLICT (key) DO NOTHING;
 
 -- 4. Storage Bucket Setup for PDF files

@@ -386,7 +386,7 @@ export interface QRCodeSettings {
 
 export const fetchQRCodeSettings = async (): Promise<QRCodeSettings> => {
   const defaultSettings: QRCodeSettings = {
-    url: "https://paravoor-sargamela.msmernakulam.in/",
+    url: "https://paravoor-complex-sargamela.netlify.app/",
     enabled: true,
   };
 

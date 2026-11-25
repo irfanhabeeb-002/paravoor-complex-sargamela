@@ -30,7 +30,7 @@ const Home: React.FC = () => {
   const [hadeeth, setHadeeth] = useState<HadeethData>(DEFAULT_HADEETH);
   const [champions, setChampions] = useState<ChampionsSettings>({ enabled: false, champions: [] });
   const [qrSettings, setQrSettings] = useState<QRCodeSettings>({
-    url: "https://paravoor-sargamela.msmernakulam.in/",
+    url: "https://paravoor-complex-sargamela.netlify.app/",
     enabled: true,
   });
   const [loading, setLoading] = useState(true);

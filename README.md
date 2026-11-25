@@ -2,7 +2,7 @@
 
 Official mobile-first results portal and admin desk for **KNM Paravoor Complex Madrasa Sargamela 2026**.
 
-- **Live Host**: [https://paravoor-sargamela.msmernakulam.in/](https://paravoor-sargamela.msmernakulam.in/)
+- **Live Host**: [https://paravoor-complex-sargamela.netlify.app/](https://paravoor-complex-sargamela.netlify.app/)
 - **Repository**: [https://github.com/irfanhabeeb-002/paravoor-complex-sargamela.git](https://github.com/irfanhabeeb-002/paravoor-complex-sargamela.git)
 
 ---

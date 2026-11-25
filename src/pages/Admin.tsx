@@ -74,7 +74,7 @@ export const AdminPage: React.FC = () => {
     champions: [],
   });
   const [qrSettings, setQrSettings] = useState<QRCodeSettings>({
-    url: "https://paravoor-sargamela.msmernakulam.in/",
+    url: "https://paravoor-complex-sargamela.netlify.app/",
     enabled: true,
   });
 
@@ -905,7 +905,7 @@ export const AdminPage: React.FC = () => {
                   type="text"
                   value={qrSettings.url}
                   onChange={(e) => setQrSettings((prev) => ({ ...prev, url: e.target.value }))}
-                  placeholder="https://paravoor-sargamela.msmernakulam.in/"
+                  placeholder="https://paravoor-complex-sargamela.netlify.app/"
                   className="w-full px-3 py-2 text-xs rounded-xl border border-neutral-300 bg-white font-mono focus:outline-none focus:ring-2 focus:ring-red-600"
                 />
               </div>

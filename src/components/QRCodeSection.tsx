@@ -10,7 +10,7 @@ interface QRCodeSectionProps {
 export const QRCodeSection: React.FC<QRCodeSectionProps> = ({ settings }) => {
   if (!settings.enabled) return null;
 
-  const targetUrl = settings.url || "https://paravoor-sargamela.msmernakulam.in/";
+  const targetUrl = settings.url || "https://paravoor-complex-sargamela.netlify.app/";
 
   const handleShare = async () => {
     if (navigator.share) {
