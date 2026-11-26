@@ -43,15 +43,16 @@ export const fetchMadrasaPoints = async (): Promise<MadrasaPointEntry[]> => {
       const { data, error } = await client
         .from("madrasa_points")
         .select("*")
-        .order("display_order", { ascending: true });
+        .order("points", { ascending: false });
 
       if (!error && data && data.length > 0) {
-        const mapped: MadrasaPointEntry[] = data.map((item) => ({
-          id: item.id,
-          name: item.name,
-          points: Number(item.points) || 0,
-          order: item.display_order || 0,
-        }));
+        const mapped: MadrasaPointEntry[] = data
+          .map((item) => ({
+            id: item.id,
+            name: item.name,
+            points: Number(item.points) || 0,
+          }))
+          .sort((a, b) => b.points - a.points);
         localStorage.setItem(LS_POINTS_KEY, JSON.stringify(mapped));
         return mapped;
       }
@@ -64,31 +65,34 @@ export const fetchMadrasaPoints = async (): Promise<MadrasaPointEntry[]> => {
   try {
     const cached = localStorage.getItem(LS_POINTS_KEY);
     if (cached) {
-      return JSON.parse(cached);
+      const parsed: MadrasaPointEntry[] = JSON.parse(cached);
+      return parsed.sort((a, b) => b.points - a.points);
     }
   } catch {
     // ignore
   }
 
-  return PARAVOOR_MADRASAS;
+  return [...PARAVOOR_MADRASAS].sort((a, b) => b.points - a.points);
 };
 
 export const saveMadrasaPoints = async (
   points: MadrasaPointEntry[]
 ): Promise<{ success: boolean; error?: string }> => {
+  // Sort descending by marks (points)
+  const sorted = [...points].sort((a, b) => b.points - a.points);
+
   // Always update local storage first
-  localStorage.setItem(LS_POINTS_KEY, JSON.stringify(points));
+  localStorage.setItem(LS_POINTS_KEY, JSON.stringify(sorted));
   notifyDataChange("points");
 
   const client = getSupabaseClient();
   if (client) {
     try {
-      for (const item of points) {
+      for (const item of sorted) {
         const { error } = await client.from("madrasa_points").upsert({
           id: item.id,
           name: item.name,
           points: item.points,
-          display_order: item.order,
           updated_at: new Date().toISOString(),
         });
         if (error) throw error;

@@ -142,10 +142,12 @@ export const AdminPage: React.FC = () => {
 
   const handleSavePoints = async () => {
     setSavingPoints(true);
-    const res = await saveMadrasaPoints(points);
+    const sorted = [...points].sort((a, b) => b.points - a.points);
+    setPoints(sorted);
+    const res = await saveMadrasaPoints(sorted);
     setSavingPoints(false);
     if (res.success) {
-      toast.success("Point table updated successfully!");
+      toast.success("Point table saved & sorted by marks!");
     } else {
       toast.success("Point table updated locally!");
     }
@@ -506,13 +508,18 @@ export const AdminPage: React.FC = () => {
             </div>
 
             <div className="space-y-4 max-w-xl">
-              {points.map((madrasa) => (
+              {points.map((madrasa, index) => (
                 <div
                   key={madrasa.id}
                   className="flex items-center justify-between gap-4 p-3 sm:p-4 rounded-2xl bg-neutral-50 border border-neutral-200"
                 >
-                  <div className="font-bold text-neutral-900 text-base sm:text-lg">
-                    {madrasa.name}
+                  <div className="flex items-center gap-3">
+                    <span className="w-6 h-6 rounded-lg bg-neutral-200 text-neutral-700 font-black text-xs flex items-center justify-center shrink-0">
+                      {index + 1}
+                    </span>
+                    <div className="font-bold text-neutral-900 text-base sm:text-lg">
+                      {madrasa.name}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-neutral-500 uppercase">Points:</span>

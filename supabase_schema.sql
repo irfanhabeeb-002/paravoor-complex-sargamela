@@ -6,12 +6,11 @@
 -- 1. Grant PostgREST schema access to anon and authenticated roles
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 
--- 2. Madrasa Points Table (updated manually from admin)
+-- 2. Madrasa Points Table (updated manually from admin, sorted descending by marks)
 CREATE TABLE IF NOT EXISTS public.madrasa_points (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   points NUMERIC NOT NULL DEFAULT 0,
-  display_order INT NOT NULL DEFAULT 0,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
@@ -28,12 +27,12 @@ DROP POLICY IF EXISTS "Allow write madrasa_points" ON public.madrasa_points;
 CREATE POLICY "Allow write madrasa_points" ON public.madrasa_points FOR ALL USING (true);
 
 -- Insert initial 4 Madrasas of Paravoor Complex
-INSERT INTO public.madrasa_points (id, name, points, display_order)
+INSERT INTO public.madrasa_points (id, name, points)
 VALUES 
-  ('purayar', 'പുറയാർ', 0, 1),
-  ('manjali', 'മാഞ്ഞാലി', 0, 2),
-  ('alamthuruth', 'ആളംത്തുരുത്ത്', 0, 3),
-  ('parana', 'പാറാന', 0, 4)
+  ('purayar', 'പുറയാർ', 0),
+  ('manjali', 'മാഞ്ഞാലി', 0),
+  ('alamthuruth', 'ആളംത്തുരുത്ത്', 0),
+  ('parana', 'പാറാന', 0)
 ON CONFLICT (id) DO NOTHING;
 
 -- 3. Program Results Table (Program IDs 1 to 63 with PDF URL)
