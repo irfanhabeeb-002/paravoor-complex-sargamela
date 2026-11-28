@@ -197,63 +197,108 @@ export const TvScreening: React.FC = () => {
         />
 
         {/* ── Slide Type 1: Category Scoreboard ── */}
-        {currentSlide.type === "scoreboard" && (
-          <div
-            className="absolute z-10 flex flex-col justify-between overflow-hidden rounded-[26px] sm:rounded-[34px] border-[2.5px] sm:border-[3px] border-neutral-900 bg-white"
-            style={{
-              left: "6.25%",
-              top: "25.0%",
-              width: "87.5%",
-              height: "62.5%",
-            }}
-          >
-            {/* Table Header Row */}
-            <div className="flex w-full h-[20%] border-b-[2.5px] sm:border-b-[3px] border-neutral-900 bg-white">
-              {/* Category Name Column */}
-              <div className="w-[22%] sm:w-[20%] border-r-[2.5px] sm:border-r-[3px] border-neutral-900 flex items-center justify-center p-1 sm:p-2">
-                <span className="font-black text-neutral-950 tracking-tight text-center text-[2.2vw] sm:text-[2.0vw] leading-none uppercase">
+        {currentSlide.type === "scoreboard" && (() => {
+          const isPrePrinted =
+            currentSlide.id === "senior" ||
+            currentSlide.id === "sub-junior" ||
+            currentSlide.id === "junior";
+
+          // Sizing based on number of columns
+          const numCols = currentSlide.programIds.length;
+          const isSenior = currentSlide.id === "senior";
+          const isSubOrJunior =
+            currentSlide.id === "sub-junior" || currentSlide.id === "junior";
+
+          // Column 0 (Category / Madrasa Name) width
+          const col0Width = isSenior ? "14%" : isSubOrJunior ? "16%" : "18%";
+
+          // Fonts for program numbers (header)
+          const progNumFont = isSenior
+            ? "text-[0.9vw] sm:text-[0.85vw]"
+            : isSubOrJunior
+            ? "text-[1.3vw] sm:text-[1.2vw]"
+            : "text-[2.0vw] sm:text-[1.7vw]";
+
+          // Fonts for scores
+          const scoreFont = isSenior
+            ? "text-[1.05vw] sm:text-[1.0vw]"
+            : isSubOrJunior
+            ? "text-[1.4vw] sm:text-[1.3vw]"
+            : "text-[2.2vw] sm:text-[1.9vw]";
+
+          // Fonts for category title
+          const catTitleFont = isSenior
+            ? "text-[1.7vw] sm:text-[1.5vw]"
+            : isSubOrJunior
+            ? "text-[1.8vw] sm:text-[1.6vw]"
+            : "text-[2.2vw] sm:text-[1.9vw]";
+
+          // Fonts for madrasa names
+          const madrasaNameFont = isSenior
+            ? "text-[1.4vw] sm:text-[1.3vw]"
+            : isSubOrJunior
+            ? "text-[1.6vw] sm:text-[1.5vw]"
+            : "text-[2.3vw] sm:text-[2.0vw]";
+
+          return (
+            <div
+              className={`absolute z-10 grid overflow-hidden bg-white ${
+                isPrePrinted
+                  ? "rounded-[2.88vw] border-none"
+                  : "rounded-[26px] sm:rounded-[34px] border-[2.5px] border-neutral-900"
+              }`}
+              style={{
+                left: isPrePrinted ? "5.21%" : "6.25%",
+                top: isPrePrinted ? "24.18%" : "25.0%",
+                width: isPrePrinted ? "89.58%" : "87.5%",
+                height: isPrePrinted ? "64.62%" : "62.5%",
+                gridTemplateRows: "repeat(5, 1fr)",
+                gridTemplateColumns: `${col0Width} repeat(${numCols}, 1fr)`,
+              }}
+            >
+              {/* Row 0: Header Row */}
+              {/* Category Name Cell */}
+              <div className="border-r-[2.5px] border-b-[2.5px] border-neutral-900 flex items-center justify-center p-1 bg-white select-none">
+                <span
+                  className={`font-black text-neutral-950 tracking-tight text-center leading-none uppercase ${catTitleFont}`}
+                >
                   {currentSlide.categoryName}
                 </span>
               </div>
 
-              {/* Program Numbers Header Columns */}
-              <div className="flex-1 flex w-full">
-                {currentSlide.programIds.map((progId, idx) => (
-                  <div
-                    key={progId}
-                    className={`flex-1 flex items-center justify-center ${
-                      idx < currentSlide.programIds.length - 1
-                        ? "border-r-[2px] sm:border-r-[2.5px] border-neutral-900"
-                        : ""
-                    }`}
+              {/* Program Numbers Header */}
+              {currentSlide.programIds.map((progId, idx) => (
+                <div
+                  key={progId}
+                  className={`border-b-[2.5px] border-neutral-900 flex items-center justify-center bg-white ${
+                    idx < numCols - 1 ? "border-r-[1.5px]" : ""
+                  }`}
+                >
+                  <span
+                    className={`font-black text-neutral-900 leading-none select-none tabular-nums ${progNumFont}`}
                   >
-                    <span className="font-black text-neutral-900 text-[2.2vw] sm:text-[1.8vw] leading-none">
-                      {progId}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* 4 Madrasa Data Rows */}
-            {SCOREBOARD_MADRASAS.map((madrasa, rowIndex) => (
-              <div
-                key={madrasa.id}
-                className={`flex w-full h-[20%] ${
-                  rowIndex < SCOREBOARD_MADRASAS.length - 1
-                    ? "border-b-[2px] sm:border-b-[2.5px] border-neutral-900"
-                    : ""
-                }`}
-              >
-                {/* Madrasa Name Cell */}
-                <div className="w-[22%] sm:w-[20%] border-r-[2.5px] sm:border-r-[3px] border-neutral-900 flex items-center justify-start px-2 sm:px-4">
-                  <span className="font-extrabold text-neutral-950 text-[2.4vw] sm:text-[2.0vw] leading-tight font-sans tracking-wide">
-                    {madrasa.name}
+                    {progId}
                   </span>
                 </div>
+              ))}
 
-                {/* Score Cells for Each Program */}
-                <div className="flex-1 flex w-full">
+              {/* Rows 1 to 4: The 4 Madrasas */}
+              {SCOREBOARD_MADRASAS.map((madrasa, rowIndex) => (
+                <React.Fragment key={madrasa.id}>
+                  {/* Madrasa Name Cell */}
+                  <div
+                    className={`border-r-[2.5px] border-neutral-900 flex items-center justify-start px-2 sm:px-3 bg-white ${
+                      rowIndex < SCOREBOARD_MADRASAS.length - 1 ? "border-b-[2px]" : ""
+                    }`}
+                  >
+                    <span
+                      className={`font-extrabold text-neutral-950 leading-tight font-sans tracking-wide truncate ${madrasaNameFont}`}
+                    >
+                      {madrasa.name}
+                    </span>
+                  </div>
+
+                  {/* Program Score Cells */}
                   {currentSlide.programIds.map((progId, colIdx) => {
                     const mark = scores[progId]?.[madrasa.id];
                     const hasMark = typeof mark === "number" && !isNaN(mark);
@@ -261,29 +306,31 @@ export const TvScreening: React.FC = () => {
                     return (
                       <div
                         key={progId}
-                        className={`flex-1 flex items-center justify-center ${
-                          colIdx < currentSlide.programIds.length - 1
-                            ? "border-r-[2px] sm:border-r-[2.5px] border-neutral-900"
+                        className={`flex items-center justify-center bg-white ${
+                          rowIndex < SCOREBOARD_MADRASAS.length - 1
+                            ? "border-b-[2px] border-neutral-900"
                             : ""
-                        }`}
+                        } ${colIdx < numCols - 1 ? "border-r-[1.5px] border-neutral-900" : ""}`}
                       >
                         {hasMark ? (
-                          <span className="font-black text-neutral-950 text-[2.3vw] sm:text-[1.9vw] leading-none tabular-nums">
+                          <span
+                            className={`font-black text-neutral-950 leading-none tabular-nums ${scoreFont}`}
+                          >
                             {mark}
                           </span>
                         ) : (
-                          <span className="text-neutral-300 font-bold text-[1.8vw] leading-none">
+                          <span className="text-neutral-300 font-bold text-[1.2vw] leading-none select-none">
                             -
                           </span>
                         )}
                       </div>
                     );
                   })}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+                </React.Fragment>
+              ))}
+            </div>
+          );
+        })()}
 
         {/* ── Slide Type 2: Final Scoresheet (Calculated Rankwise) ── */}
         {currentSlide.type === "final" && (
