@@ -16,14 +16,14 @@ import {
 import { ALL_PROGRAMS } from "@/data/programsData";
 
 // Local storage keys for resilient offline fallback
-const LS_POINTS_KEY = "paravoor_madrasa_points_v1";
-const LS_PROGRAMS_KEY = "paravoor_program_results_v1";
-const LS_HADEETH_KEY = "paravoor_hadeeth_v1";
-const LS_CHAMPIONS_KEY = "paravoor_champions_v1";
-const LS_QR_KEY = "paravoor_qr_v1";
-const LS_GPAY_QR_KEY = "paravoor_gpay_qr_v1";
-const LS_FOOTER_BANNERS_KEY = "paravoor_footer_banners_v1";
-const LS_PROGRAM_SCORES_KEY = "paravoor_program_scores_v1";
+export const LS_POINTS_KEY = "paravoor_madrasa_points_v1";
+export const LS_PROGRAMS_KEY = "paravoor_program_results_v1";
+export const LS_HADEETH_KEY = "paravoor_hadeeth_v1";
+export const LS_CHAMPIONS_KEY = "paravoor_champions_v1";
+export const LS_QR_KEY = "paravoor_qr_v1";
+export const LS_GPAY_QR_KEY = "paravoor_gpay_qr_v1";
+export const LS_FOOTER_BANNERS_KEY = "paravoor_footer_banners_v1";
+export const LS_PROGRAM_SCORES_KEY = "paravoor_program_scores_v1";
 
 export const DATA_CHANGE_EVENT = "paravoor_data_changed";
 
@@ -785,7 +785,7 @@ export const subscribeToAllRealtimeData = (
   };
   window.addEventListener("storage", handleStorage);
 
-  // 4. Background polling fallback (runs every 3.5 seconds)
+  // 4. Background polling fallback (runs every 1.5 seconds)
   // Guarantees all spectators and TV screens refresh automatically without touching screen
   const pollTimer = setInterval(async () => {
     try {
@@ -797,7 +797,7 @@ export const subscribeToAllRealtimeData = (
     } catch {
       // silently ignore
     }
-  }, 3500);
+  }, 1500);
 
   return () => {
     if (channel && client) {

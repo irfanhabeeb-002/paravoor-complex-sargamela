@@ -7,6 +7,8 @@ import {
 import {
   fetchProgramScores,
   subscribeToAllRealtimeData,
+  DATA_CHANGE_EVENT,
+  LS_PROGRAM_SCORES_KEY,
 } from "@/lib/dataService";
 import {
   Maximize,
@@ -92,18 +94,53 @@ export const TvScreening: React.FC = () => {
   const [showControls, setShowControls] = useState(true);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Load initial scores and subscribe to live changes
+  // Load initial scores and subscribe to instant live changes
   useEffect(() => {
-    fetchProgramScores().then(setScores);
+    const refreshScores = async () => {
+      const s = await fetchProgramScores();
+      setScores(s);
+    };
 
+    refreshScores();
+
+    // 1. Supabase WebSockets & BroadcastChannel & auto polling from dataService
     const unsubscribe = subscribeToAllRealtimeData((payload) => {
       if (payload.programScores) {
         setScores(payload.programScores);
       }
     });
 
+    // 2. Direct Window CustomEvent listener (instant sync on same tab/window)
+    const handleLocalChange = (e: any) => {
+      if (!e.detail?.type || e.detail.type === "program_scores") {
+        fetchProgramScores().then(setScores);
+      }
+    };
+    window.addEventListener(DATA_CHANGE_EVENT, handleLocalChange);
+
+    // 3. Direct Storage Event (detects changes across tabs in 0ms)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === LS_PROGRAM_SCORES_KEY && e.newValue) {
+        try {
+          setScores(JSON.parse(e.newValue));
+        } catch {}
+      }
+    };
+    window.addEventListener("storage", handleStorageChange);
+
+    // 4. Ultra-responsive 1.5s background polling fallback
+    const pollInterval = setInterval(async () => {
+      try {
+        const s = await fetchProgramScores();
+        setScores(s);
+      } catch {}
+    }, 1500);
+
     return () => {
       unsubscribe();
+      window.removeEventListener(DATA_CHANGE_EVENT, handleLocalChange);
+      window.removeEventListener("storage", handleStorageChange);
+      clearInterval(pollInterval);
     };
   }, []);
 
@@ -246,11 +283,7 @@ export const TvScreening: React.FC = () => {
 
           return (
             <div
-              className={`absolute z-10 grid overflow-hidden bg-white ${
-                isPrePrinted
-                  ? "rounded-[2.88vw] border-none"
-                  : "rounded-[26px] sm:rounded-[34px] border-[2.5px] border-neutral-900"
-              }`}
+              className="absolute z-10 grid overflow-hidden bg-white border-[3px] sm:border-[4px] border-neutral-950 rounded-[28px] sm:rounded-[36px] shadow-sm"
               style={{
                 left: isPrePrinted ? "5.21%" : "6.25%",
                 top: isPrePrinted ? "24.18%" : "25.0%",
@@ -262,7 +295,7 @@ export const TvScreening: React.FC = () => {
             >
               {/* Row 0: Header Row */}
               {/* Category Name Cell */}
-              <div className="border-r-[2.5px] border-b-[2.5px] border-neutral-900 flex items-center justify-center p-1 bg-white select-none">
+              <div className="border-r-[2.5px] border-b-[2.5px] border-neutral-950 flex items-center justify-center p-1 bg-transparent select-none">
                 <span
                   className={`font-black text-neutral-950 tracking-tight text-center leading-none uppercase ${catTitleFont}`}
                 >
@@ -274,8 +307,8 @@ export const TvScreening: React.FC = () => {
               {currentSlide.programIds.map((progId, idx) => (
                 <div
                   key={progId}
-                  className={`border-b-[2.5px] border-neutral-900 flex items-center justify-center bg-white ${
-                    idx < numCols - 1 ? "border-r-[1.5px]" : ""
+                  className={`border-b-[2.5px] border-neutral-950 flex items-center justify-center bg-transparent ${
+                    idx < numCols - 1 ? "border-r-[1.5px] border-neutral-950" : ""
                   }`}
                 >
                   <span
@@ -291,8 +324,8 @@ export const TvScreening: React.FC = () => {
                 <React.Fragment key={madrasa.id}>
                   {/* Madrasa Name Cell */}
                   <div
-                    className={`border-r-[2.5px] border-neutral-900 flex items-center justify-start px-2 sm:px-4 bg-white overflow-hidden ${
-                      rowIndex < SCOREBOARD_MADRASAS.length - 1 ? "border-b-[2px]" : ""
+                    className={`border-r-[2.5px] border-neutral-950 flex items-center justify-start px-2 sm:px-4 bg-transparent overflow-hidden ${
+                      rowIndex < SCOREBOARD_MADRASAS.length - 1 ? "border-b-[2px] border-neutral-950" : ""
                     }`}
                   >
                     <span
@@ -310,11 +343,11 @@ export const TvScreening: React.FC = () => {
                     return (
                       <div
                         key={progId}
-                        className={`flex items-center justify-center bg-white ${
+                        className={`flex items-center justify-center bg-transparent ${
                           rowIndex < SCOREBOARD_MADRASAS.length - 1
-                            ? "border-b-[2px] border-neutral-900"
+                            ? "border-b-[2px] border-neutral-950"
                             : ""
-                        } ${colIdx < numCols - 1 ? "border-r-[1.5px] border-neutral-900" : ""}`}
+                        } ${colIdx < numCols - 1 ? "border-r-[1.5px] border-neutral-950" : ""}`}
                       >
                         {hasMark ? (
                           <span

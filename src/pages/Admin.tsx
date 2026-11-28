@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import {
   fetchMadrasaPoints,
@@ -19,6 +19,8 @@ import {
   deleteFooterBannerImage,
   fetchProgramScores,
   saveProgramScores,
+  LS_PROGRAM_SCORES_KEY,
+  notifyDataChange,
   ChampionsSettings,
 } from "@/lib/dataService";
 import {
@@ -150,39 +152,55 @@ export const AdminPage: React.FC = () => {
   };
 
   // ── TV Scoreboard Actions (Marks 0 to 15) ─────────────────────────────────
+  const saveScoreTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const handleScoreChange = (programId: number, madrasaId: string, valStr: string) => {
+    let nextScores: ProgramScoresMap;
     if (valStr.trim() === "") {
-      setProgramScores((prev) => {
-        const next = { ...prev };
-        if (next[programId]) {
-          const prog = { ...next[programId] };
-          delete prog[madrasaId];
-          next[programId] = prog;
-        }
-        return next;
-      });
-      return;
+      const next = { ...programScores };
+      if (next[programId]) {
+        const prog = { ...next[programId] };
+        delete prog[madrasaId];
+        next[programId] = prog;
+      }
+      nextScores = next;
+    } else {
+      const num = parseInt(valStr, 10);
+      const clamped = isNaN(num) ? 0 : Math.min(15, Math.max(0, num));
+      nextScores = {
+        ...programScores,
+        [programId]: {
+          ...(programScores[programId] || {}),
+          [madrasaId]: clamped,
+        },
+      };
     }
 
-    const num = parseInt(valStr, 10);
-    const clamped = isNaN(num) ? 0 : Math.min(15, Math.max(0, num));
+    setProgramScores(nextScores);
 
-    setProgramScores((prev) => ({
-      ...prev,
-      [programId]: {
-        ...(prev[programId] || {}),
-        [madrasaId]: clamped,
-      },
-    }));
+    // 1. Instant local sync (0ms): local storage, BroadcastChannel, and CustomEvent
+    localStorage.setItem(LS_PROGRAM_SCORES_KEY, JSON.stringify(nextScores));
+    notifyDataChange("program_scores");
+
+    // 2. Debounced cloud sync to Supabase (400ms)
+    if (saveScoreTimeoutRef.current) {
+      clearTimeout(saveScoreTimeoutRef.current);
+    }
+    saveScoreTimeoutRef.current = setTimeout(() => {
+      saveProgramScores(nextScores);
+    }, 400);
   };
 
   const handleSaveScores = async () => {
+    if (saveScoreTimeoutRef.current) {
+      clearTimeout(saveScoreTimeoutRef.current);
+    }
     setSavingScores(true);
     const res = await saveProgramScores(programScores);
     setSavingScores(false);
 
     if (res.success) {
-      toast.success("Scoreboard saved! Live TV screening updated immediately.");
+      toast.success("Scoreboard saved & synced in real-time!");
     } else {
       toast.success("Scoreboard saved locally!");
     }
