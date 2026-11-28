@@ -5,9 +5,19 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import Home from "./pages/Home";
 import AdminPage from "./pages/Admin";
+import TvScreening from "./pages/TvScreening";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
+
+// Handle direct access to /tv-screening without hash on Netlify
+if (
+  typeof window !== "undefined" &&
+  window.location.pathname.includes("tv-screening") &&
+  !window.location.hash.includes("tv-screening")
+) {
+  window.location.replace("/#/tv-screening");
+}
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -19,6 +29,9 @@ const App = () => (
           {/* Public Sargamela Portal */}
           <Route path="/" element={<Home />} />
           <Route path="/results" element={<Navigate to="/" replace />} />
+
+          {/* Live Casting to TV (32 inch & 40 inch) */}
+          <Route path="/tv-screening" element={<TvScreening />} />
 
           {/* Secret Obfuscated Admin Route */}
           <Route path="/pvr-control-desk-9482" element={<AdminPage />} />

@@ -10,6 +10,8 @@ import {
   DEFAULT_GPAY_QR,
   FooterBannersData,
   DEFAULT_FOOTER_BANNERS,
+  ProgramScoresMap,
+  calculateMadrasaTotals,
 } from "@/data/paravoorData";
 import { ALL_PROGRAMS } from "@/data/programsData";
 
@@ -21,6 +23,7 @@ const LS_CHAMPIONS_KEY = "paravoor_champions_v1";
 const LS_QR_KEY = "paravoor_qr_v1";
 const LS_GPAY_QR_KEY = "paravoor_gpay_qr_v1";
 const LS_FOOTER_BANNERS_KEY = "paravoor_footer_banners_v1";
+const LS_PROGRAM_SCORES_KEY = "paravoor_program_scores_v1";
 
 export const DATA_CHANGE_EVENT = "paravoor_data_changed";
 
@@ -613,7 +616,60 @@ export const deleteFooterBannerImage = async (
   return { success: true };
 };
 
-// ── 8. Real-Time Auto Sync Engine (No Manual Refresh Needed) ────────────────
+// ── 8. Live TV Program Scores (0-15) ─────────────────────────────────────────
+export const fetchProgramScores = async (): Promise<ProgramScoresMap> => {
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { data, error } = await client
+        .from("site_settings")
+        .select("value")
+        .eq("key", "program_scores")
+        .single();
+      if (!error && data && data.value) {
+        localStorage.setItem(LS_PROGRAM_SCORES_KEY, JSON.stringify(data.value));
+        return data.value as ProgramScoresMap;
+      }
+    } catch (err) {
+      console.warn("Supabase fetch program scores error:", err);
+    }
+  }
+
+  try {
+    const cached = localStorage.getItem(LS_PROGRAM_SCORES_KEY);
+    if (cached) return JSON.parse(cached);
+  } catch {
+    // ignore
+  }
+
+  return {};
+};
+
+export const saveProgramScores = async (
+  scores: ProgramScoresMap
+): Promise<{ success: boolean; error?: string }> => {
+  localStorage.setItem(LS_PROGRAM_SCORES_KEY, JSON.stringify(scores));
+  notifyDataChange("program_scores");
+
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { error } = await client.from("site_settings").upsert({
+        key: "program_scores",
+        value: scores,
+        updated_at: new Date().toISOString(),
+      });
+      if (error) throw error;
+    } catch (err: any) {
+      console.error("Supabase save program scores error:", err);
+      return { success: false, error: err.message };
+    }
+  }
+
+  return { success: true };
+};
+
+// ── 9. Real-Time Auto Sync Engine (No Manual Refresh Needed) ────────────────
 export interface RealtimeDataPayload {
   points?: MadrasaPointEntry[];
   resultsMap?: Record<number, ProgramResultEntry>;
@@ -621,6 +677,7 @@ export interface RealtimeDataPayload {
   champions?: ChampionsSettings;
   gpay?: GPayQRData;
   banners?: FooterBannersData;
+  programScores?: ProgramScoresMap;
 }
 
 export const subscribeToAllRealtimeData = (
@@ -654,13 +711,14 @@ export const subscribeToAllRealtimeData = (
           "postgres_changes",
           { event: "*", schema: "public", table: "site_settings" },
           async () => {
-            const [had, champ, gpay, banners] = await Promise.all([
+            const [had, champ, gpay, banners, scores] = await Promise.all([
               fetchHadeeth(),
               fetchIndividualChampions(),
               fetchGPayQR(),
               fetchFooterBanners(),
+              fetchProgramScores(),
             ]);
-            onData({ hadeeth: had, champions: champ, gpay, banners });
+            onData({ hadeeth: had, champions: champ, gpay, banners, programScores: scores });
           }
         )
         .subscribe();
@@ -681,16 +739,28 @@ export const subscribeToAllRealtimeData = (
       } else if (type === "programs") {
         const resultsMap = await fetchProgramResults();
         onData({ resultsMap });
+      } else if (type === "program_scores") {
+        const scores = await fetchProgramScores();
+        onData({ programScores: scores });
       } else {
-        const [pts, res, had, champ, gpay, banners] = await Promise.all([
+        const [pts, res, had, champ, gpay, banners, scores] = await Promise.all([
           fetchMadrasaPoints(),
           fetchProgramResults(),
           fetchHadeeth(),
           fetchIndividualChampions(),
           fetchGPayQR(),
           fetchFooterBanners(),
+          fetchProgramScores(),
         ]);
-        onData({ points: pts, resultsMap: res, hadeeth: had, champions: champ, gpay, banners });
+        onData({
+          points: pts,
+          resultsMap: res,
+          hadeeth: had,
+          champions: champ,
+          gpay,
+          banners,
+          programScores: scores,
+        });
       }
     };
   } catch {
@@ -707,16 +777,23 @@ export const subscribeToAllRealtimeData = (
       try {
         onData({ resultsMap: JSON.parse(e.newValue) });
       } catch {}
+    } else if (e.key === LS_PROGRAM_SCORES_KEY && e.newValue) {
+      try {
+        onData({ programScores: JSON.parse(e.newValue) });
+      } catch {}
     }
   };
   window.addEventListener("storage", handleStorage);
 
   // 4. Background polling fallback (runs every 3.5 seconds)
-  // Guarantees all spectators' screens refresh automatically without user touching the screen
+  // Guarantees all spectators and TV screens refresh automatically without touching screen
   const pollTimer = setInterval(async () => {
     try {
-      const points = await fetchMadrasaPoints();
-      onData({ points });
+      const [points, scores] = await Promise.all([
+        fetchMadrasaPoints(),
+        fetchProgramScores(),
+      ]);
+      onData({ points, programScores: scores });
     } catch {
       // silently ignore
     }

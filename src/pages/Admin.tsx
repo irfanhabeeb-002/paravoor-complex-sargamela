@@ -17,6 +17,8 @@ import {
   saveFooterBanners,
   uploadFooterBannerImage,
   deleteFooterBannerImage,
+  fetchProgramScores,
+  saveProgramScores,
   ChampionsSettings,
 } from "@/lib/dataService";
 import {
@@ -30,6 +32,9 @@ import {
   DEFAULT_GPAY_QR,
   FooterBannersData,
   DEFAULT_FOOTER_BANNERS,
+  SCOREBOARD_MADRASAS,
+  ProgramScoresMap,
+  calculateMadrasaTotals,
 } from "@/data/paravoorData";
 import {
   ALL_PROGRAMS,
@@ -55,6 +60,9 @@ import {
   RefreshCw,
   Images,
   CreditCard,
+  Tv,
+  LayoutGrid,
+  List,
 } from "lucide-react";
 
 const ADMIN_PASSCODE = "paravoor2026";
@@ -69,8 +77,8 @@ export const AdminPage: React.FC = () => {
 
   // Active tab (Database & Fix tab removed for security)
   const [activeTab, setActiveTab] = useState<
-    "points" | "programs" | "champions" | "hadeeth" | "gpay" | "footer"
-  >("points");
+    "tv_scores" | "points" | "programs" | "champions" | "hadeeth" | "gpay" | "footer"
+  >("tv_scores");
 
   // State data
   const [points, setPoints] = useState<MadrasaPointEntry[]>(PARAVOOR_MADRASAS);
@@ -82,6 +90,13 @@ export const AdminPage: React.FC = () => {
   });
   const [gpayData, setGpayData] = useState<GPayQRData>(DEFAULT_GPAY_QR);
   const [footerBanners, setFooterBanners] = useState<FooterBannersData>(DEFAULT_FOOTER_BANNERS);
+  const [programScores, setProgramScores] = useState<ProgramScoresMap>({});
+
+  // TV Scores settings & filters
+  const [savingScores, setSavingScores] = useState(false);
+  const [scoreCategoryFilter, setScoreCategoryFilter] = useState("All");
+  const [scoreSearch, setScoreSearch] = useState("");
+  const [scoreViewMode, setScoreViewMode] = useState<"cards" | "table">("cards");
 
   // Program filters & upload
   const [programSearch, setProgramSearch] = useState("");
@@ -96,13 +111,14 @@ export const AdminPage: React.FC = () => {
     if (!isAuthenticated) return;
 
     const load = async () => {
-      const [pts, res, had, champ, gpay, banners] = await Promise.all([
+      const [pts, res, had, champ, gpay, banners, scores] = await Promise.all([
         fetchMadrasaPoints(),
         fetchProgramResults(),
         fetchHadeeth(),
         fetchIndividualChampions(),
         fetchGPayQR(),
         fetchFooterBanners(),
+        fetchProgramScores(),
       ]);
 
       setPoints(pts);
@@ -111,6 +127,7 @@ export const AdminPage: React.FC = () => {
       setChampionsSettings(champ);
       setGpayData(gpay);
       setFooterBanners(banners);
+      setProgramScores(scores);
     };
 
     load();
@@ -130,6 +147,54 @@ export const AdminPage: React.FC = () => {
   const handleLogout = () => {
     setIsAuthenticated(false);
     sessionStorage.removeItem(AUTH_STORAGE_KEY);
+  };
+
+  // ── TV Scoreboard Actions (Marks 0 to 15) ─────────────────────────────────
+  const handleScoreChange = (programId: number, madrasaId: string, valStr: string) => {
+    if (valStr.trim() === "") {
+      setProgramScores((prev) => {
+        const next = { ...prev };
+        if (next[programId]) {
+          const prog = { ...next[programId] };
+          delete prog[madrasaId];
+          next[programId] = prog;
+        }
+        return next;
+      });
+      return;
+    }
+
+    const num = parseInt(valStr, 10);
+    const clamped = isNaN(num) ? 0 : Math.min(15, Math.max(0, num));
+
+    setProgramScores((prev) => ({
+      ...prev,
+      [programId]: {
+        ...(prev[programId] || {}),
+        [madrasaId]: clamped,
+      },
+    }));
+  };
+
+  const handleSaveScores = async () => {
+    setSavingScores(true);
+    const res = await saveProgramScores(programScores);
+    setSavingScores(false);
+
+    if (res.success) {
+      toast.success("Scoreboard saved! Live TV screening updated immediately.");
+    } else {
+      toast.success("Scoreboard saved locally!");
+    }
+  };
+
+  const handleSyncScoresToPointTable = async () => {
+    const totals = calculateMadrasaTotals(programScores);
+    setSavingPoints(true);
+    await saveMadrasaPoints(totals);
+    setPoints(totals);
+    setSavingPoints(false);
+    toast.success("Scores synced to Public Point Table successfully!");
   };
 
   // ── Points Actions ────────────────────────────────────────────────────────
@@ -379,6 +444,20 @@ export const AdminPage: React.FC = () => {
     return matchesCat && matchesSearch;
   });
 
+  // Filter programs for TV scores list
+  const filteredScorePrograms = ALL_PROGRAMS.filter((p) => {
+    const matchesCat =
+      scoreCategoryFilter === "All" ||
+      p.category.toLowerCase() === scoreCategoryFilter.toLowerCase();
+    const matchesSearch =
+      scoreSearch === "" ||
+      p.name.toLowerCase().includes(scoreSearch.toLowerCase()) ||
+      p.id.toString() === scoreSearch.trim();
+    return matchesCat && matchesSearch;
+  });
+
+  const liveTotals = calculateMadrasaTotals(programScores);
+
   return (
     <div className="min-h-screen bg-neutral-100 flex flex-col items-center pb-12">
       {/* Admin Header */}
@@ -402,6 +481,14 @@ export const AdminPage: React.FC = () => {
 
           <div className="flex items-center gap-2">
             <Link
+              to="/tv-screening"
+              target="_blank"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition border border-red-200"
+            >
+              <Tv className="w-3.5 h-3.5" />
+              <span>Open TV Live</span>
+            </Link>
+            <Link
               to="/"
               target="_blank"
               className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-neutral-700 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition"
@@ -421,6 +508,18 @@ export const AdminPage: React.FC = () => {
 
         {/* Tab Navigation */}
         <div className="max-w-4xl mx-auto px-4 flex items-center gap-1 overflow-x-auto no-scrollbar border-t border-neutral-100">
+          <button
+            onClick={() => setActiveTab("tv_scores")}
+            className={`flex items-center gap-1.5 px-3.5 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition whitespace-nowrap ${
+              activeTab === "tv_scores"
+                ? "border-red-600 text-red-700"
+                : "border-transparent text-neutral-600 hover:text-neutral-900"
+            }`}
+          >
+            <Tv className="w-4 h-4" />
+            <span>TV Scores (0-15)</span>
+          </button>
+
           <button
             onClick={() => setActiveTab("points")}
             className={`flex items-center gap-1.5 px-3.5 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition whitespace-nowrap ${
@@ -497,6 +596,292 @@ export const AdminPage: React.FC = () => {
 
       {/* Main Container */}
       <main className="w-full max-w-4xl mx-auto px-4 py-6">
+        {/* ── TAB 0: TV SCORES (0-15) ──────────────────────────────────── */}
+        {activeTab === "tv_scores" && (
+          <div className="space-y-6">
+            {/* Header & Controls Card */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-neutral-200 space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="p-2 rounded-xl bg-red-100 text-red-700">
+                      <Tv className="w-5 h-5" />
+                    </span>
+                    <h2 className="text-xl font-black text-neutral-900">
+                      Live TV Scoreboard (Marks 0 to 15)
+                    </h2>
+                  </div>
+                  <p className="text-xs text-neutral-500 mt-1">
+                    Enter marks (0 to 15) for each madrasa across different programs. The TV screening slides and calculated final standing update in real-time.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <Link
+                    to="/tv-screening"
+                    target="_blank"
+                    className="flex items-center gap-2 px-4 py-2 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl text-xs font-bold transition shadow-sm"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Open TV Screening</span>
+                  </Link>
+
+                  <button
+                    onClick={handleSaveScores}
+                    disabled={savingScores}
+                    className="flex items-center gap-2 px-5 py-2 bg-red-700 hover:bg-red-800 text-white rounded-xl text-xs font-bold shadow-md transition disabled:opacity-50"
+                  >
+                    {savingScores ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <CheckCircle className="w-3.5 h-3.5" />
+                    )}
+                    <span>Save Scores</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Live Rank Standing Card (Calculated from Scores) */}
+              <div className="bg-neutral-900 text-white rounded-2xl p-4 sm:p-5 shadow-inner">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Trophy className="w-4 h-4 text-yellow-400" />
+                    <span className="text-xs font-black uppercase tracking-wider text-neutral-300">
+                      Live Calculated Rankings (Final Scoresheet)
+                    </span>
+                  </div>
+                  <button
+                    onClick={handleSyncScoresToPointTable}
+                    disabled={savingPoints}
+                    className="text-[11px] font-bold text-amber-300 hover:text-amber-200 underline flex items-center gap-1 transition"
+                  >
+                    {savingPoints && <RefreshCw className="w-3 h-3 animate-spin" />}
+                    <span>Sync to Public Point Table &rarr;</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  {liveTotals.map((item, idx) => (
+                    <div
+                      key={item.id}
+                      className="bg-neutral-800/80 border border-neutral-700/60 rounded-xl p-3 flex flex-col justify-between"
+                    >
+                      <div className="flex items-center justify-between text-xs font-bold text-neutral-400">
+                        <span>
+                          {idx === 0 ? "🥇 1st" : idx === 1 ? "🥈 2nd" : idx === 2 ? "🥉 3rd" : "🎖️ 4th"}
+                        </span>
+                        <span className="text-amber-400 font-black text-sm tabular-nums">
+                          {item.points} pts
+                        </span>
+                      </div>
+                      <div className="font-extrabold text-white text-base mt-1 truncate font-sans">
+                        {item.name}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Filter and View Mode Switcher */}
+              <div className="space-y-3 pt-2">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                  {/* Category Pills */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto w-full pb-1 no-scrollbar">
+                    {PROGRAM_CATEGORIES.map((cat) => (
+                      <button
+                        key={cat.key}
+                        onClick={() => setScoreCategoryFilter(cat.key)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+                          scoreCategoryFilter === cat.key
+                            ? "bg-red-700 text-white shadow-sm"
+                            : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+                        }`}
+                      >
+                        {cat.label} ({cat.range})
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* View Mode Toggle */}
+                  <div className="flex items-center gap-1 bg-neutral-100 p-1 rounded-xl shrink-0 self-end sm:self-auto">
+                    <button
+                      onClick={() => setScoreViewMode("cards")}
+                      className={`flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg transition ${
+                        scoreViewMode === "cards"
+                          ? "bg-white text-neutral-900 shadow-xs"
+                          : "text-neutral-500 hover:text-neutral-800"
+                      }`}
+                      title="Cards View"
+                    >
+                      <LayoutGrid className="w-3.5 h-3.5" />
+                      <span>Cards</span>
+                    </button>
+                    <button
+                      onClick={() => setScoreViewMode("table")}
+                      className={`flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg transition ${
+                        scoreViewMode === "table"
+                          ? "bg-white text-neutral-900 shadow-xs"
+                          : "text-neutral-500 hover:text-neutral-800"
+                      }`}
+                      title="Table Matrix View"
+                    >
+                      <List className="w-3.5 h-3.5" />
+                      <span>Table</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Search Bar */}
+                <div className="relative w-full">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+                  <input
+                    type="text"
+                    placeholder="Search program by name or # (e.g. 1, Quran, Song)..."
+                    value={scoreSearch}
+                    onChange={(e) => setScoreSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-red-600"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* ── View Mode: Cards ── */}
+            {scoreViewMode === "cards" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {filteredScorePrograms.map((prog) => {
+                  const style = CATEGORY_STYLES[prog.category];
+
+                  return (
+                    <div
+                      key={prog.id}
+                      className="bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-neutral-200 flex flex-col justify-between space-y-3"
+                    >
+                      {/* Program Header */}
+                      <div className="flex items-start justify-between gap-2 border-b border-neutral-100 pb-2.5">
+                        <div className="flex items-center gap-2.5">
+                          <span
+                            className="w-7 h-7 rounded-lg text-white font-black text-xs flex items-center justify-center shrink-0 shadow-xs"
+                            style={{ backgroundColor: style?.bgHex || "#dc2626" }}
+                          >
+                            #{prog.id}
+                          </span>
+                          <div>
+                            <h3 className="text-xs sm:text-sm font-black text-neutral-900 leading-tight">
+                              {prog.name}
+                            </h3>
+                            <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wide">
+                              {prog.category}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Madrasa Score Inputs (0 to 15) */}
+                      <div className="grid grid-cols-2 gap-2.5 pt-1">
+                        {SCOREBOARD_MADRASAS.map((madrasa) => {
+                          const val = programScores[prog.id]?.[madrasa.id];
+                          const displayVal = typeof val === "number" ? val : "";
+
+                          return (
+                            <div
+                              key={madrasa.id}
+                              className="p-2.5 rounded-xl bg-neutral-50 border border-neutral-200 flex items-center justify-between gap-2"
+                            >
+                              <span className="text-xs font-bold text-neutral-800 font-sans truncate">
+                                {madrasa.name}
+                              </span>
+                              <input
+                                type="number"
+                                min="0"
+                                max="15"
+                                placeholder="0-15"
+                                value={displayVal}
+                                onChange={(e) =>
+                                  handleScoreChange(prog.id, madrasa.id, e.target.value)
+                                }
+                                className="w-14 px-2 py-1 text-center font-black text-sm rounded-lg border border-neutral-300 bg-white focus:outline-none focus:ring-2 focus:ring-red-600 tabular-nums"
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* ── View Mode: Table Matrix ── */}
+            {scoreViewMode === "table" && (
+              <div className="bg-white rounded-3xl p-4 sm:p-6 shadow-sm border border-neutral-200 overflow-x-auto">
+                <table className="w-full min-w-[700px] border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b-2 border-neutral-800">
+                      <th className="py-2.5 px-3 text-left font-black text-neutral-900 uppercase tracking-wider w-36">
+                        Madrasa
+                      </th>
+                      {filteredScorePrograms.map((p) => (
+                        <th
+                          key={p.id}
+                          className="py-2.5 px-1.5 text-center font-black text-neutral-900 min-w-[54px]"
+                          title={`${p.name} (${p.category})`}
+                        >
+                          <div className="text-[10px] text-neutral-500 font-medium">#{p.id}</div>
+                          <div className="truncate max-w-[50px] mx-auto text-[9px]">{p.category}</div>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {SCOREBOARD_MADRASAS.map((m) => (
+                      <tr key={m.id} className="border-b border-neutral-200 hover:bg-neutral-50">
+                        <td className="py-2.5 px-3 font-extrabold text-neutral-900 font-sans">
+                          {m.name}
+                        </td>
+                        {filteredScorePrograms.map((p) => {
+                          const val = programScores[p.id]?.[m.id];
+                          const displayVal = typeof val === "number" ? val : "";
+
+                          return (
+                            <td key={p.id} className="py-1.5 px-1 text-center">
+                              <input
+                                type="number"
+                                min="0"
+                                max="15"
+                                placeholder="-"
+                                value={displayVal}
+                                onChange={(e) =>
+                                  handleScoreChange(p.id, m.id, e.target.value)
+                                }
+                                className="w-11 px-1 py-1 text-center font-black text-xs rounded border border-neutral-300 bg-white focus:outline-none focus:ring-1 focus:ring-red-600 tabular-nums"
+                              />
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Sticky Save Bar */}
+            <div className="sticky bottom-4 z-20 flex items-center justify-between p-3.5 bg-neutral-900/95 backdrop-blur-md rounded-2xl border border-neutral-800 shadow-xl text-white">
+              <div className="text-xs font-medium text-neutral-300">
+                Marks automatically clamp between <strong>0 and 15</strong>.
+              </div>
+              <button
+                onClick={handleSaveScores}
+                disabled={savingScores}
+                className="flex items-center gap-2 px-6 py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-md transition active:scale-95"
+              >
+                {savingScores && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                <span>Save All Scores</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* ── TAB 1: POINT TABLE ────────────────────────────────────────── */}
         {activeTab === "points" && (
           <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-neutral-200 space-y-6">
