@@ -209,36 +209,40 @@ export const TvScreening: React.FC = () => {
           const isSubOrJunior =
             currentSlide.id === "sub-junior" || currentSlide.id === "junior";
 
-          // Column 0 (Category / Madrasa Name) width
-          const col0Width = isSenior ? "14%" : isSubOrJunior ? "16%" : "18%";
+          // Column 0 (Category / Madrasa Name) width - give generous width for Malayalam names
+          const col0Width = isSenior
+            ? "15%"
+            : isSubOrJunior
+            ? "18%"
+            : "24%";
 
           // Fonts for program numbers (header)
           const progNumFont = isSenior
             ? "text-[0.9vw] sm:text-[0.85vw]"
             : isSubOrJunior
-            ? "text-[1.3vw] sm:text-[1.2vw]"
-            : "text-[2.0vw] sm:text-[1.7vw]";
+            ? "text-[1.25vw] sm:text-[1.15vw]"
+            : "text-[1.8vw] sm:text-[1.6vw]";
 
           // Fonts for scores
           const scoreFont = isSenior
             ? "text-[1.05vw] sm:text-[1.0vw]"
             : isSubOrJunior
-            ? "text-[1.4vw] sm:text-[1.3vw]"
-            : "text-[2.2vw] sm:text-[1.9vw]";
+            ? "text-[1.35vw] sm:text-[1.25vw]"
+            : "text-[1.9vw] sm:text-[1.7vw]";
 
           // Fonts for category title
           const catTitleFont = isSenior
+            ? "text-[1.6vw] sm:text-[1.4vw]"
+            : isSubOrJunior
             ? "text-[1.7vw] sm:text-[1.5vw]"
-            : isSubOrJunior
-            ? "text-[1.8vw] sm:text-[1.6vw]"
-            : "text-[2.2vw] sm:text-[1.9vw]";
+            : "text-[2.0vw] sm:text-[1.8vw]";
 
-          // Fonts for madrasa names
+          // Fonts for madrasa names - carefully tuned so "ആളംത്തുരുത്ത്" never overflows or clips
           const madrasaNameFont = isSenior
-            ? "text-[1.4vw] sm:text-[1.3vw]"
+            ? "text-[1.25vw] sm:text-[1.15vw]"
             : isSubOrJunior
-            ? "text-[1.6vw] sm:text-[1.5vw]"
-            : "text-[2.3vw] sm:text-[2.0vw]";
+            ? "text-[1.45vw] sm:text-[1.35vw]"
+            : "text-[1.75vw] sm:text-[1.55vw]";
 
           return (
             <div
@@ -287,12 +291,12 @@ export const TvScreening: React.FC = () => {
                 <React.Fragment key={madrasa.id}>
                   {/* Madrasa Name Cell */}
                   <div
-                    className={`border-r-[2.5px] border-neutral-900 flex items-center justify-start px-2 sm:px-3 bg-white ${
+                    className={`border-r-[2.5px] border-neutral-900 flex items-center justify-start px-2 sm:px-4 bg-white overflow-hidden ${
                       rowIndex < SCOREBOARD_MADRASAS.length - 1 ? "border-b-[2px]" : ""
                     }`}
                   >
                     <span
-                      className={`font-extrabold text-neutral-950 leading-tight font-sans tracking-wide truncate ${madrasaNameFont}`}
+                      className={`font-extrabold text-neutral-950 leading-tight font-sans tracking-wide whitespace-nowrap select-none ${madrasaNameFont}`}
                     >
                       {madrasa.name}
                     </span>
